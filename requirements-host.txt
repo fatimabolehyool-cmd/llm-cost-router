@@ -1,0 +1,5 @@
+# Host-side tools for the experiments (Experiment 1 client, Experiment 2 benchmark client, tests).
+# Exact versions are recorded with `pip freeze > results/host-env.txt` when you run them.
+httpx>=0.27
+datasets>=3.0
+pytest>=8.0

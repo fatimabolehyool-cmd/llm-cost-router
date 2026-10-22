@@ -1,0 +1,28 @@
+# Experiment 2 only. Ports are bound to 127.0.0.1 so nothing is exposed to the network.
+# Host port 8090 (not 8080) so it will not clash with Airflow's web UI later.
+services:
+  policy-train:
+    build: { context: ., dockerfile: exp2_policy_serving/Dockerfile }
+    image: router-policy:exp2
+    profiles: ["train"]
+    volumes: [".:/work"]
+    environment:
+      MLFLOW_DISABLE_TELEMETRY: "true"   # MLflow 3.x otherwise phones home (seen 22 Oct); privacy, Section H
+      DO_NOT_TRACK: "true"
+    command: ["python", "exp2_policy_serving/train_policy.py"]
+
+  policy-server:
+    image: router-policy:exp2
+    volumes: [".:/work:ro"]
+    ports:
+      - "127.0.0.1:8090:8080"   # REST, V2 Inference Protocol
+      - "127.0.0.1:8091:8081"   # gRPC (not used by the router yet)
+      - "127.0.0.1:8092:8082"   # Prometheus metrics
+    mem_limit: 1g
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/v2/health/ready', timeout=2).status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s

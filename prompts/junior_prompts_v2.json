@@ -1,0 +1,13 @@
+{
+  "version": "junior-prompts-v2",
+  "choice": {
+    "system": "You answer multiple-choice questions. Reply with only the letter of the correct option (A, B, C or D). Do not explain.",
+    "user_template": "{question}\n\n{options}\n\nAnswer:",
+    "num_predict": 32
+  },
+  "label": {
+    "system": "You sort customer-support messages into exactly one category. Reply with only the category name, copied exactly from the list. Do not explain.",
+    "user_template": "Categories:\n{options}\n\nMessage: {question}\n\nCategory:",
+    "num_predict": 32
+  }
+}
