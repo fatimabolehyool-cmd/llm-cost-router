@@ -1,0 +1,1 @@
+policy-server healthy after 5 s (includes container start)
