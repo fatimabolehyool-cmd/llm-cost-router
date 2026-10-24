@@ -21,14 +21,32 @@ _ANSWER_TAG = re.compile(r"(?i:answer)\s*(?:(?i:is))?\s*[:\-]?\s*\(?([A-D])\)?(?
 _STANDALONE = re.compile(r"(?<![A-Za-z])([A-D])(?![A-Za-z])")
 
 
-def normalize_choice(text: str | None) -> str | None:
-    """Return 'A'..'D' or None if the letter is missing or ambiguous."""
+_LEADING_LETTER = re.compile(r"^\(?([A-D])\)?(?:[.):\-]\s*|\s+)(.*)$", re.S)
+
+
+def normalize_choice(text: str | None, options: list[str] | None = None) -> str | None:
+    """Return 'A'..'D' or None if the letter is missing or ambiguous.
+
+    `options` (the four option texts, in order) lets the reader accept answers whose option
+    text itself contains letters, e.g. "C. both A and B" (found in Experiment 1a, 22 Oct),
+    and answers that repeat the option text without a letter.
+    """
     if not text or not text.strip():
         return None
     t = text.strip()
     tagged = _ANSWER_TAG.findall(t)
     if tagged:
         return tagged[-1]
+    if options and len(options) == 4:
+        opts = [_canon(o) for o in options]
+        m = _LEADING_LETTER.match(t)
+        if m:
+            rest = _canon(m.group(2))
+            if rest == opts["ABCD".index(m.group(1))]:   # "C. both A and B" -> C
+                return m.group(1)
+        whole = _canon(t)
+        if whole and opts.count(whole) == 1:              # "both A and B" -> C
+            return "ABCD"[opts.index(whole)]
     # Without an "Answer:" tag, accept only if exactly one option letter appears.
     # This rejects some readable answers ("B, because A is wrong"), which is the
     # safe direction: unreadable -> escalate, never a false agreement.
@@ -76,9 +94,10 @@ def normalize_label(text: str | None, labels: list[str]) -> str | None:
 
 # ---------- dispatch ----------------------------------------------------------------------
 
-def normalize(task_type: str, text: str | None, labels: list[str] | None = None) -> str | None:
+def normalize(task_type: str, text: str | None, options: list[str] | None = None) -> str | None:
+    """`options`: the four option texts for choice, the category names for label."""
     if task_type == "choice":
-        return normalize_choice(text)
+        return normalize_choice(text, options)
     if task_type == "label":
-        return normalize_label(text, labels or [])
+        return normalize_label(text, options or [])
     raise ValueError(f"unsupported task_type: {task_type}")

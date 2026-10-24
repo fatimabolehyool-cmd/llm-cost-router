@@ -50,6 +50,11 @@ THINKING_MODELS = ("qwen3",)
 
 # ---------- helpers ----------------------------------------------------------------------
 
+def choice_texts(q: dict) -> list[str]:
+    """'A. text\nB. text...' -> ['text', ...] so the normalizer can read 'C. both A and B'."""
+    return [line.split(". ", 1)[1] if ". " in line else line for line in q["options"].splitlines()]
+
+
 def load_labels() -> list[str]:
     return json.loads(LABELS_FILE.read_text(encoding="utf-8")) if LABELS_FILE.exists() else []
 
@@ -103,7 +108,7 @@ async def ask(client: httpx.AsyncClient, model: str, q: dict) -> dict:
         rec.update({
             "ok": True,
             "text": text,
-            "answer": normalize(q["task_type"], text, LABELS),
+            "answer": normalize(q["task_type"], text, LABELS if q["task_type"] == "label" else choice_texts(q)),
             "eval_count": j.get("eval_count"),
             "prompt_eval_count": j.get("prompt_eval_count"),
             "server_total_ms": (j.get("total_duration") or 0) / 1e6,
@@ -152,19 +157,57 @@ async def screen(models: list[str]) -> None:
                 rows.append(await ask(client, m, q))
                 if i % 20 == 0:
                     print(f"[{m}] {i}/{len(qs)}")
-    info = env_info()
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     write_jsonl(RESULTS / f"exp1_screen_raw_{stamp}.jsonl", rows)
+    summarize(rows, models, qs, env_info(), f"exp1_screen_summary_{stamp}.md",
+              f"Experiment 1a: junior screening ({stamp})")
 
+
+def rescore(raw_path: str) -> None:
+    """Re-read recorded model answers with the CURRENT normalizer. No model is called, so the
+    latencies are the original measurements; only readability and accuracy are recomputed."""
+    qs = load_questions()
+    qmap = {q["id"]: q for q in qs}
+    rows = [json.loads(l) for l in Path(raw_path).read_text(encoding="utf-8").splitlines() if l.strip()]
+    changed = 0
+    for r in rows:
+        q = qmap[r["id"]]
+        opts = LABELS if q["task_type"] == "label" else choice_texts(q)
+        new = normalize(q["task_type"], r.get("text"), opts) if r.get("ok") else None
+        changed += new != r.get("answer")
+        r["answer"], r["correct"] = new, new is not None and new == q["gold"]
+    models = list(dict.fromkeys(r["model"] for r in rows))
+    stamp = Path(raw_path).stem.rsplit("_", 1)[-1]
+    write_jsonl(RESULTS / f"exp1_rescored_raw_{stamp}.jsonl", rows)
+    info = {"rescored_from": Path(raw_path).name, "answers_changed_by_new_normalizer": changed,
+            "normalizer": "option-aware (reads 'C. both A and B')", "prompt_version": PROMPTS["version"],
+            "dataset_sha256": (DATA.with_suffix(".sha256")).read_text().split()[0]
+            if DATA.with_suffix(".sha256").exists() else "missing",
+            "note": "latencies are the original measurements from the raw file"}
+    summarize(rows, models, qs, info, f"exp1_rescored_summary_{stamp}.md",
+              f"Experiment 1a, rescored with the fixed normalizer (run {stamp})")
+
+
+def wilson_upper(k: int, n: int, z: float = 1.96) -> float:
+    if n == 0:
+        return float("nan")
+    p = k / n
+    centre = p + z * z / (2 * n)
+    margin = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5)
+    return 100 * (centre + margin) / (1 + z * z / n)
+
+
+def summarize(rows: list[dict], models: list[str], qs: list[dict], info: dict, filename: str, title: str) -> None:
     by = {(r["model"], r["id"]): r for r in rows}
     ids = [q["id"] for q in qs]
     task = {q["id"]: q["task_type"] for q in qs}
-    lines = [f"# Experiment 1a: junior screening ({stamp})", "",
+    lines = [f"# {title}", "",
              "All figures measured on this machine; none are estimates.", "",
              "```", json.dumps(info, indent=2), "```", "",
              "## Per model", "",
              "| Model | Accuracy choice | Accuracy label | Unreadable | Errors | p50 ms (choice) | p95 ms (choice) | p50 ms (label) | p95 ms (label) |",
              "|---|---|---|---|---|---|---|---|---|"]
+    unread_rate = {}
     for m in models:
         mr = [by[(m, i)] for i in ids]
         def acc(t):
@@ -174,36 +217,48 @@ async def screen(models: list[str]) -> None:
             xs = [r["wall_ms"] for r in mr if r["task_type"] == t and r.get("ok")]
             return f"{pct(xs, p):.0f}" if xs else "-"
         unread = sum(1 for r in mr if r.get("ok") and r["answer"] is None)
+        unread_rate[m] = unread / len(ids)
         errs = sum(1 for r in mr if not r.get("ok"))
         lines.append(f"| {m} | {acc('choice')} | {acc('label')} | {unread} | {errs} | "
                      f"{lat('choice',50)} | {lat('choice',95)} | {lat('label',50)} | {lat('label',95)} |")
 
     lines += ["", "## Every pair (agreement signal)", "",
-              "Agree = both answers readable and equal. 'Acc if agree' = accuracy of the agreed answer. "
-              "'Acc if disagree' = accuracy of junior 1 when they disagree. Gap = the difference "
-              "(proposal target: at least 20 points). False agreement = wrong although they agreed "
-              "(proposal target: at most 25%).", "",
-              "| Pair | Agree (= not escalated) | Acc if agree | Acc if disagree | Gap (pts) | False agreement | Choice agree acc | Label agree acc |",
-              "|---|---|---|---|---|---|---|---|"]
-    pair_scores = []
+              "Agree = both answers readable and equal (the request is NOT escalated). 'Acc if agree' = accuracy "
+              "of the agreed answer. 'Acc if disagree' = accuracy of junior 1 when they disagree. Gap = the "
+              "difference (target >= 20 points). False agreement = wrong although they agreed (target <= 25%); "
+              "its upper 95% bound is what the release gate checks. 'Same wrong answer' = share of ALL questions "
+              "where both juniors gave the same wrong answer (correlated error, ADR-7).", "",
+              "| Pair | Agree | Acc if agree | Acc if disagree | Gap (pts) | False agreement | FA upper 95% | Same wrong answer | Choice agree acc | Label agree acc |",
+              "|---|---|---|---|---|---|---|---|---|---|"]
+    eligible = []
     for a, b in itertools.combinations(models, 2):
         agree = [i for i in ids if by[(a, i)]["answer"] is not None and by[(a, i)]["answer"] == by[(b, i)]["answer"]]
-        dis = [i for i in ids if i not in set(agree)]
-        acc_ag = 100 * sum(by[(a, i)]["correct"] for i in agree) / len(agree) if agree else float("nan")
+        agree_set = set(agree)
+        dis = [i for i in ids if i not in agree_set]
+        right = sum(by[(a, i)]["correct"] for i in agree)
+        acc_ag = 100 * right / len(agree) if agree else float("nan")
         acc_dis = 100 * sum(by[(a, i)]["correct"] for i in dis) / len(dis) if dis else float("nan")
+        fa_up = wilson_upper(len(agree) - right, len(agree))
+        same_wrong = 100 * (len(agree) - right) / len(ids)
         def sub(t):
             xs = [i for i in agree if task[i] == t]
             return f"{100*sum(by[(a,i)]['correct'] for i in xs)/len(xs):.0f}% (n={len(xs)})" if xs else "-"
         gap = acc_ag - acc_dis
-        pair_scores.append((gap, a, b))
+        if len(agree) / len(ids) >= 0.30 and max(unread_rate[a], unread_rate[b]) <= 0.10:
+            eligible.append((fa_up, -gap, a, b, gap, 100 - acc_ag))
         lines.append(f"| {a} + {b} | {100*len(agree)/len(ids):.0f}% | {acc_ag:.1f}% | {acc_dis:.1f}% | "
-                     f"{gap:.1f} | {100-acc_ag:.1f}% | {sub('choice')} | {sub('label')} |")
-    best = max(pair_scores)
-    lines += ["", f"Largest gap: **{best[1]} + {best[2]}** ({best[0]:.1f} points). "
-              "Choose the pair on gap AND false agreement AND latency, not gap alone.",
-              "", f"n = {len(ids)} questions; with this n, a percentage is only good to roughly "
+                     f"{gap:.1f} | {100-acc_ag:.1f}% | {fa_up:.1f}% | {same_wrong:.1f}% | {sub('choice')} | {sub('label')} |")
+    lines.append("")
+    if eligible:
+        fa_up, _, a, b, gap, fa = min(eligible)
+        lines.append(f"Best eligible pair: **{a} + {b}** (lowest false-agreement upper bound {fa_up:.1f}%, "
+                     f"false agreement {fa:.1f}%, gap {gap:.1f} points). Eligible = agree on >= 30% of questions "
+                     "and each model unreadable on <= 10%. Check latency in the per-model table too.")
+    else:
+        lines.append("No eligible pair (needs agreement >= 30% and each model unreadable <= 10%).")
+    lines += ["", f"n = {len(ids)} questions; a percentage is only good to roughly "
               f"±{100*1.96*(0.25/len(ids))**0.5:.0f} points (95%). Treat small differences as ties."]
-    out = RESULTS / f"exp1_screen_summary_{stamp}.md"
+    out = RESULTS / filename
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
     print(f"\nsaved {out}")
@@ -263,6 +318,8 @@ async def load(a: str, b: str, levels: list[int], n: int) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    rs = sub.add_parser("rescore", help="re-read a raw results file with the current normalizer")
+    rs.add_argument("raw")
     s = sub.add_parser("screen")
     s.add_argument("--models", nargs="+", required=True)
     l = sub.add_parser("load")
@@ -271,7 +328,9 @@ def main() -> None:
     l.add_argument("--n", type=int, default=24)
     args = ap.parse_args()
     RESULTS.mkdir(exist_ok=True)
-    if args.cmd == "screen":
+    if args.cmd == "rescore":
+        rescore(args.raw)
+    elif args.cmd == "screen":
         asyncio.run(screen(args.models))
     else:
         asyncio.run(load(args.pair[0], args.pair[1], args.levels, args.n))

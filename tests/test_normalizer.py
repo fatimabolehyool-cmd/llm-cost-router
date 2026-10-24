@@ -24,6 +24,26 @@ def test_normalize_choice(text, expected):
     assert normalize_choice(text) == expected
 
 
+OPTS = ["only A", "only B", "both A and B", "neither A nor B"]
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("C. both A and B", "C"),        # real phi4-mini answer from Experiment 1a (was unreadable)
+        ("C. Both A and B", "C"),
+        ("(C) both A and B.", "C"),
+        ("both A and B", "C"),           # option text without the letter
+        ("D. neither A nor B", "D"),
+        ("C. only A", None),             # letter and text disagree -> unreadable, never a guess
+        ("A or B", None),                # still ambiguous with options given
+        ("B", "B"),
+    ],
+)
+def test_normalize_choice_with_option_texts(text, expected):
+    assert normalize_choice(text, OPTS) == expected
+
+
 LABELS = ["card_arrival", "card_payment_fee_charged", "lost_or_stolen_card", "card", "refund_not_showing_up"]
 
 

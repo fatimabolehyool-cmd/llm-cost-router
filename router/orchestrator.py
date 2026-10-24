@@ -75,7 +75,7 @@ class Orchestrator:
         t0 = time.perf_counter()
         rid = f"req_{uuid.uuid4().hex[:12]}"
         data_class = classify(question + "\n" + "\n".join(options), sensitive)
-        labels = options if task_type == "label" else None
+        labels = options  # option texts (choice) or category names (label), for the normalizer
         system, user, max_tokens = self._prompt(task_type, question, options)
 
         a1 = a2 = None

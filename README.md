@@ -23,7 +23,7 @@ This repository is the start of the project. It currently contains:
 3. In this folder:
    ```bash
    make venv        # host Python env + records exact versions in results/host-env.txt
-   make test        # 52 unit tests must pass
+   make test        # 60 unit tests must pass
    make pull        # ~11 GB: gemma3:4b, qwen3:4b, phi4-mini, llama3.2:3b (4 different labs)
    make data        # 100 MMLU (choice) + 100 Banking77 (label) questions, fixed seed, SHA-256 saved
    ```
