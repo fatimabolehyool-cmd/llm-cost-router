@@ -64,8 +64,8 @@ s1: env          ## S1: core stack starts, serves all modes, fails safely, recov
 	$(PY) smoke/s1_compose.py
 
 s3: env          ## S3: canary test, sensitive data never leaves (breaker cooldown 0 during the test)
-	BREAKER_COOLDOWN_S=0 $(COMPOSE) up -d --build router
-	$(PY) smoke/s3_canary.py; status=$$?; $(COMPOSE) up -d router; exit $$status
+	BREAKER_COOLDOWN_S=0 $(COMPOSE) up -d --wait --build router
+	$(PY) smoke/s3_canary.py; status=$$?; $(COMPOSE) up -d --wait router; exit $$status
 
 s2: env          ## S2: Airflow runs the pipeline, MLflow registers the challenger (big download first time)
 	$(PY) smoke/s2_airflow_mlflow.py
