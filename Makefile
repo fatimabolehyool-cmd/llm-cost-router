@@ -1,13 +1,13 @@
 PY ?= .venv/bin/python
 MODELS ?= gemma3:4b qwen3:4b phi4-mini llama3.2:3b
 
-.PHONY: venv test pull data exp1-screen exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down
+.PHONY: venv test pull data exp1-screen exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
 
 venv:            ## create the host virtual environment
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt
 	mkdir -p results && .venv/bin/pip freeze > results/host-env.txt
 
-test:            ## unit tests for the answer normalizer
+test:            ## all unit tests (normalizer, routing rules, privacy, breaker)
 	$(PY) -m pytest -q tests
 
 pull:            ## download the candidate junior models into Ollama
@@ -41,3 +41,22 @@ exp2-stats:      ## memory/CPU of the running policy server
 
 exp2-down:
 	docker compose -f docker-compose.exp2.yml down
+
+# ---------------- feasibility checks (Docker Desktop must be running) ----------------
+COMPOSE = docker compose --profile mocks
+
+env:             ## create .env from the example on first use (local testing values)
+	@[ -f .env ] || (cp .env.example .env && echo "created .env from .env.example")
+
+s1: env          ## S1: core stack starts, serves all modes, fails safely, recovers
+	$(PY) smoke/s1_compose.py
+
+s3: env          ## S3: canary test, sensitive data never leaves (breaker cooldown 0 during the test)
+	BREAKER_COOLDOWN_S=0 $(COMPOSE) up -d --build router
+	$(PY) smoke/s3_canary.py; status=$$?; $(COMPOSE) up -d router; exit $$status
+
+s2: env          ## S2: Airflow runs the pipeline, MLflow registers the challenger (big download first time)
+	$(PY) smoke/s2_airflow_mlflow.py
+
+down:            ## stop everything (data volumes are kept)
+	docker compose --profile mocks --profile orchestration down

@@ -1,0 +1,37 @@
+"""Airflow DAG: weekly policy re-validation (ADR-15, ADR-22).
+
+The DAG only SCHEDULES; all logic lives in the pipelines CLI, which runs in its own virtual
+environment (/opt/pipelines-venv) so the pipeline's libraries (MLflow, scikit-learn) never
+conflict with Airflow's. The same command runs without Airflow, which keeps it testable.
+"""
+from __future__ import annotations
+
+import os
+from datetime import datetime, timedelta
+
+from airflow.providers.standard.operators.bash import BashOperator
+from airflow.sdk import DAG
+
+PROJECT = os.environ.get("PROJECT_DIR", "/opt/project")
+PYTHON = os.environ.get("PIPELINES_PYTHON", "/opt/pipelines-venv/bin/python")
+MLFLOW = os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+PIPELINE = f"cd {PROJECT} && {PYTHON} -m pipelines.revalidate"
+
+with DAG(
+    dag_id="revalidate_policy",
+    description="Re-validate the routing policy on a replayed weekly window and register a challenger",
+    schedule="@weekly",
+    start_date=datetime(2026, 10, 1),
+    catchup=False,
+    max_active_runs=1,
+    default_args={"retries": 1, "retry_delay": timedelta(minutes=2)},
+    tags=["router", "mlops"],
+) as dag:
+    BashOperator(
+        task_id="revalidate",
+        bash_command=(f"{PIPELINE} --data {PROJECT}/data/replay/fixture_v1.jsonl "
+                      f"--window {{{{ ds }}}} --out {PROJECT}/results"),
+        env={"MLFLOW_TRACKING_URI": MLFLOW, "MLFLOW_DISABLE_TELEMETRY": "true",
+             "MLFLOW_DISABLE_AGENT_HINT": "1", "DO_NOT_TRACK": "true"},
+        append_env=True,
+    )

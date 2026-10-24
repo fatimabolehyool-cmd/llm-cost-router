@@ -1,0 +1,131 @@
+# Cost-aware LLM router — one Mac, Docker Compose (ADR-11). Staged with profiles (ADR-1):
+#   (no profile)    postgres, router                     minimum deployable system
+#   mocks           mock-models                          tests and feasibility checks
+#   lifecycle       mlflow                               tracking + registry
+#   orchestration   airflow                              scheduling of the pipelines
+# Ollama is NOT here: it runs natively on macOS to use the Apple GPU (ADR-8); containers reach it
+# at host.docker.internal:11434.
+# Every published port is bound to 127.0.0.1 only. Postgres is not published at all.
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  postgres:
+    <<: *hardening
+    image: postgres:16-alpine          # exact digest recorded in results/ by `make s1`
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      ROUTER_DB_PASSWORD: ${ROUTER_DB_PASSWORD:?set in .env}
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:?set in .env}
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:?set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d router"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1g
+
+  mock-models:
+    <<: *hardening
+    profiles: ["mocks"]
+    build: { context: ., dockerfile: infra/router.Dockerfile }
+    image: llm-router:dev
+    command: ["uvicorn", "mock_models.server:app", "--host", "0.0.0.0", "--port", "9100"]
+    environment:
+      MOCK_RECORDS_DIR: /records
+    ports: ["127.0.0.1:9100:9100"]     # tests read what the "providers" received
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:9100/health', timeout=2).status==200 else 1)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    mem_limit: 256m
+
+  router:
+    <<: *hardening
+    build: { context: ., dockerfile: infra/router.Dockerfile }
+    image: llm-router:dev
+    environment:
+      DATABASE_URL: postgresql://router:${ROUTER_DB_PASSWORD}@postgres:5432/router
+      ROUTER_API_KEY_SHA256: ${ROUTER_API_KEY_SHA256:?set in .env}
+      ROUTER_HASH_KEY: ${ROUTER_HASH_KEY:?set in .env}
+      JUNIOR1_URL: ${JUNIOR1_URL:-http://mock-models:9100}
+      JUNIOR1_MODEL: ${JUNIOR1_MODEL:-junior-a}
+      JUNIOR2_URL: ${JUNIOR2_URL:-http://mock-models:9100}
+      JUNIOR2_MODEL: ${JUNIOR2_MODEL:-junior-b}
+      JUNIOR_TIMEOUT_S: ${JUNIOR_TIMEOUT_S:-10}
+      JUNIOR_CONCURRENCY_CAP: ${JUNIOR_CONCURRENCY_CAP:-4}
+      SENIOR_URL: ${SENIOR_URL:-http://mock-models:9100/senior/v1/chat}
+      SENIOR_MODEL: ${SENIOR_MODEL:-senior-mock}
+      SENIOR_API_KEY: ${SENIOR_API_KEY:-not-needed-for-mock}
+      SENIOR_TIMEOUT_S: ${SENIOR_TIMEOUT_S:-20}
+      SPEND_CAP_USD: ${SPEND_CAP_USD:-30}
+      BREAKER_COOLDOWN_S: ${BREAKER_COOLDOWN_S:-60}
+    ports: ["127.0.0.1:8000:8000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      mock-models: { condition: service_healthy, required: false }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/ready', timeout=2).status==200 else 1)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    mem_limit: 512m
+
+  mlflow:
+    <<: *hardening
+    profiles: ["lifecycle", "orchestration"]
+    build: { context: ., dockerfile: infra/mlflow.Dockerfile }
+    image: llm-router-mlflow:dev
+    environment:
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD}
+    ports: ["127.0.0.1:5001:5000"]     # 5001 on the host: macOS uses port 5000 for AirPlay
+    volumes: ["mlartifacts:/mlartifacts"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:5000/health', timeout=2).status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    mem_limit: 1g
+
+  airflow:
+    <<: *hardening
+    profiles: ["orchestration"]
+    build: { context: ., dockerfile: infra/airflow.Dockerfile }
+    image: llm-router-airflow:dev
+    command: ["standalone"]
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/dags
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"   # local-only UI (127.0.0.1); not for shared hosts
+      PROJECT_DIR: /opt/project
+      PIPELINES_PYTHON: /opt/pipelines-venv/bin/python
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes: [".:/opt/project"]
+    ports: ["127.0.0.1:8081:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      mlflow: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health', timeout=3).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    mem_limit: 3g
+
+volumes:
+  pgdata:
+  mlartifacts:
