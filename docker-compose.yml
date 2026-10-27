@@ -58,7 +58,7 @@ services:
       JUNIOR1_MODEL: ${JUNIOR1_MODEL:-junior-a}
       JUNIOR2_URL: ${JUNIOR2_URL:-http://mock-models:9100}
       JUNIOR2_MODEL: ${JUNIOR2_MODEL:-junior-b}
-      JUNIOR_TIMEOUT_S: ${JUNIOR_TIMEOUT_S:-10}
+      JUNIOR_TIMEOUT_S: ${JUNIOR_TIMEOUT_S:-8}
       JUNIOR_CONCURRENCY_CAP: ${JUNIOR_CONCURRENCY_CAP:-4}
       SENIOR_URL: ${SENIOR_URL:-http://mock-models:9100/senior/v1/chat}
       SENIOR_MODEL: ${SENIOR_MODEL:-senior-mock}
@@ -96,7 +96,7 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
-    mem_limit: 2g
+    mem_limit: 3g
 
   airflow:
     <<: *hardening

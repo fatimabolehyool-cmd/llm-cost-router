@@ -27,7 +27,7 @@ class Settings:
     junior1_model: str = field(default_factory=lambda: _env("JUNIOR1_MODEL", "junior-a"))
     junior2_url: str = field(default_factory=lambda: _env("JUNIOR2_URL", "http://host.docker.internal:11434"))
     junior2_model: str = field(default_factory=lambda: _env("JUNIOR2_MODEL", "junior-b"))
-    junior_timeout_s: float = field(default_factory=lambda: float(_env("JUNIOR_TIMEOUT_S", "10")))
+    junior_timeout_s: float = field(default_factory=lambda: float(_env("JUNIOR_TIMEOUT_S", "8")))
     junior_concurrency_cap: int = field(default_factory=lambda: int(_env("JUNIOR_CONCURRENCY_CAP", "4")))
 
     # Circuit breakers (per provider, per router process)
