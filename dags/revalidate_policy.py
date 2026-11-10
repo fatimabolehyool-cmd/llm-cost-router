@@ -4,6 +4,7 @@ The DAG only SCHEDULES; all logic lives in the pipelines CLI, which runs in its 
 environment (/opt/pipelines-venv) so the pipeline's libraries (MLflow, scikit-learn) never
 conflict with Airflow's. The same command runs without Airflow, which keeps it testable.
 """
+
 from __future__ import annotations
 
 import os
@@ -29,9 +30,15 @@ with DAG(
 ) as dag:
     BashOperator(
         task_id="revalidate",
-        bash_command=(f"{PIPELINE} --data {PROJECT}/data/replay/fixture_v1.jsonl "
-                      f"--window {{{{ ds }}}} --out {PROJECT}/results"),
-        env={"MLFLOW_TRACKING_URI": MLFLOW, "MLFLOW_DISABLE_TELEMETRY": "true",
-             "MLFLOW_DISABLE_AGENT_HINT": "1", "DO_NOT_TRACK": "true"},
+        bash_command=(
+            f"{PIPELINE} --data {PROJECT}/data/replay/fixture_v1.jsonl "
+            f"--window {{{{ ds }}}} --out {PROJECT}/results"
+        ),
+        env={
+            "MLFLOW_TRACKING_URI": MLFLOW,
+            "MLFLOW_DISABLE_TELEMETRY": "true",
+            "MLFLOW_DISABLE_AGENT_HINT": "1",
+            "DO_NOT_TRACK": "true",
+        },
         append_env=True,
     )

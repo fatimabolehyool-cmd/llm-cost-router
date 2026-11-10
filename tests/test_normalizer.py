@@ -12,10 +12,10 @@ from common.normalizer import normalize, normalize_choice, normalize_label
         ("Answer: A", "A"),
         ("The answer is (B).", "B"),
         ("I think the answer is C because...", "C"),
-        ("A is wrong, so the Answer: D", "D"),       # last tagged answer wins
-        ("It is a tricky one. B", "B"),               # article 'a' is not option A
-        ("A or B", None),                             # ambiguous -> unreadable
-        ("I cannot help with that.", None),           # refusal never counts as an answer
+        ("A is wrong, so the Answer: D", "D"),  # last tagged answer wins
+        ("It is a tricky one. B", "B"),  # article 'a' is not option A
+        ("A or B", None),  # ambiguous -> unreadable
+        ("I cannot help with that.", None),  # refusal never counts as an answer
         ("", None),
         (None, None),
     ],
@@ -30,13 +30,13 @@ OPTS = ["only A", "only B", "both A and B", "neither A nor B"]
 @pytest.mark.parametrize(
     "text, expected",
     [
-        ("C. both A and B", "C"),        # real phi4-mini answer from Experiment 1a (was unreadable)
+        ("C. both A and B", "C"),  # real phi4-mini answer from Experiment 1a (was unreadable)
         ("C. Both A and B", "C"),
         ("(C) both A and B.", "C"),
-        ("both A and B", "C"),           # option text without the letter
+        ("both A and B", "C"),  # option text without the letter
         ("D. neither A nor B", "D"),
-        ("C. only A", None),             # letter and text disagree -> unreadable, never a guess
-        ("A or B", None),                # still ambiguous with options given
+        ("C. only A", None),  # letter and text disagree -> unreadable, never a guess
+        ("A or B", None),  # still ambiguous with options given
         ("B", "B"),
     ],
 )
@@ -44,21 +44,30 @@ def test_normalize_choice_with_option_texts(text, expected):
     assert normalize_choice(text, OPTS) == expected
 
 
-LABELS = ["card_arrival", "card_payment_fee_charged", "lost_or_stolen_card", "card", "refund_not_showing_up"]
+LABELS = [
+    "card_arrival",
+    "card_payment_fee_charged",
+    "lost_or_stolen_card",
+    "card",
+    "refund_not_showing_up",
+]
 
 
 @pytest.mark.parametrize(
     "text, expected",
     [
-        ("card_arrival", "card_arrival"),                       # exact
-        ("Card Arrival.", "card_arrival"),                      # case, spaces, punctuation
+        ("card_arrival", "card_arrival"),  # exact
+        ("Card Arrival.", "card_arrival"),  # case, spaces, punctuation
         ("Category: lost_or_stolen_card", "lost_or_stolen_card"),
         ("Answer: refund not showing up", "refund_not_showing_up"),
-        ("This is about card arrival, the customer waits.", "card_arrival"),   # 'card' inside longer label ignored
-        ("card", "card"),                                       # a short label is still valid on its own
-        ("card_arrival or lost_or_stolen_card", None),          # two labels -> ambiguous
-        ("delivery_problem", None),                             # not in the list -> unreadable
-        ("I can't help with that.", None),                      # refusal
+        (
+            "This is about card arrival, the customer waits.",
+            "card_arrival",
+        ),  # 'card' inside longer label ignored
+        ("card", "card"),  # a short label is still valid on its own
+        ("card_arrival or lost_or_stolen_card", None),  # two labels -> ambiguous
+        ("delivery_problem", None),  # not in the list -> unreadable
+        ("I can't help with that.", None),  # refusal
         ("", None),
         (None, None),
     ],

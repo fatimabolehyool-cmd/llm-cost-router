@@ -7,6 +7,7 @@ from a closed list). "number" was dropped from scope.
 Rule: if an answer cannot be read with confidence, return None. The router treats None
 as "disagreement", so an unreadable answer can never cause a false "agree".
 """
+
 from __future__ import annotations
 
 import re
@@ -42,10 +43,10 @@ def normalize_choice(text: str | None, options: list[str] | None = None) -> str 
         m = _LEADING_LETTER.match(t)
         if m:
             rest = _canon(m.group(2))
-            if rest == opts["ABCD".index(m.group(1))]:   # "C. both A and B" -> C
+            if rest == opts["ABCD".index(m.group(1))]:  # "C. both A and B" -> C
                 return m.group(1)
         whole = _canon(t)
-        if whole and opts.count(whole) == 1:              # "both A and B" -> C
+        if whole and opts.count(whole) == 1:  # "both A and B" -> C
             return "ABCD"[opts.index(whole)]
     # Without an "Answer:" tag, accept only if exactly one option letter appears.
     # This rejects some readable answers ("B, because A is wrong"), which is the
@@ -70,13 +71,13 @@ def normalize_label(text: str | None, labels: list[str]) -> str | None:
     """Return exactly one label from `labels` (original spelling) or None if missing/ambiguous."""
     if not text or not text.strip() or not labels:
         return None
-    by_canon = {_canon(l): l for l in labels}
+    by_canon = {_canon(label): label for label in labels}
 
     whole = _canon(text)
-    if whole in by_canon:                      # the model replied with just the label
+    if whole in by_canon:  # the model replied with just the label
         return by_canon[whole]
 
-    tagged = _LABEL_TAG.findall(text)          # "Category: card_arrival"
+    tagged = _LABEL_TAG.findall(text)  # "Category: card_arrival"
     if tagged:
         c = _canon(tagged[-1])
         if c in by_canon:
@@ -93,6 +94,7 @@ def normalize_label(text: str | None, labels: list[str]) -> str | None:
 
 
 # ---------- dispatch ----------------------------------------------------------------------
+
 
 def normalize(task_type: str, text: str | None, options: list[str] | None = None) -> str | None:
     """`options`: the four option texts for choice, the category names for label."""

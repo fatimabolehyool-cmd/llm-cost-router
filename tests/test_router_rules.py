@@ -1,4 +1,5 @@
 """Unit tests for the routing rules, privacy module and circuit breaker (no network, no database)."""
+
 import asyncio
 import os
 
@@ -12,7 +13,10 @@ from router.privacy import NON_SENSITIVE, SENSITIVE, classify, keyed_hash, mask
 os.environ.setdefault("DATABASE_URL", "postgresql://unused")
 os.environ.setdefault("ROUTER_API_KEY_SHA256", "0" * 64)
 os.environ.setdefault("ROUTER_HASH_KEY", "k")
-os.environ.setdefault("PROMPTS_FILE", os.path.join(os.path.dirname(__file__), "..", "prompts", "junior_prompts_v2.json"))
+os.environ.setdefault(
+    "PROMPTS_FILE",
+    os.path.join(os.path.dirname(__file__), "..", "prompts", "junior_prompts_v2.json"),
+)
 from router.config import Settings  # noqa: E402
 
 OPTS = ["Mars", "Jupiter", "Venus", "Earth"]
@@ -60,16 +64,29 @@ def run(orch, mode="balanced", sensitive=False, question="Which planet is larges
 
 # ---------- decision rules (rule-v0) ----------
 
+
 def test_agree_accepts_without_senior():
     orch, sen, _ = make("A", "A")
     o = run(orch)
-    assert (o.status, o.answer, o.verified, o.escalated, sen.calls) == ("answered", "A", True, False, 0)
+    assert (o.status, o.answer, o.verified, o.escalated, sen.calls) == (
+        "answered",
+        "A",
+        True,
+        False,
+        0,
+    )
 
 
 def test_disagree_balanced_escalates():
     orch, sen, _ = make("A", "C", senior="B")
     o = run(orch)
-    assert (o.status, o.answer, o.escalated, o.reason, sen.calls) == ("answered", "B", True, "escalated_disagreement", 1)
+    assert (o.status, o.answer, o.escalated, o.reason, sen.calls) == (
+        "answered",
+        "B",
+        True,
+        "escalated_disagreement",
+        1,
+    )
 
 
 def test_disagree_cheapest_returns_unverified_and_never_pays():
@@ -88,14 +105,19 @@ def test_best_quality_goes_straight_to_senior():
 def test_sensitive_disagreement_abstains_in_every_mode(mode):
     orch, sen, _ = make("A", "C")
     o = run(orch, mode=mode, sensitive=True)
-    assert (o.status, o.answer, o.reason, sen.calls) == ("abstained", None, "sensitive_disagreement", 0)
+    assert (o.status, o.answer, o.reason, sen.calls) == (
+        "abstained",
+        None,
+        "sensitive_disagreement",
+        0,
+    )
 
 
 def test_pii_in_unflagged_request_is_treated_as_sensitive():
     orch, sen, store = make("A", "C")
     o = run(orch, question="Reply to sara@example.com about Jupiter")
     assert (o.data_class, o.status, sen.calls) == (SENSITIVE, "abstained", 0)
-    assert store.rows[0]["prompt_masked"] is None          # sensitive: text never stored
+    assert store.rows[0]["prompt_masked"] is None  # sensitive: text never stored
 
 
 def test_senior_down_abstains_instead_of_unverified_answer():
@@ -133,9 +155,12 @@ def test_overload_rejects_instead_of_escalating():
     orch.cap = asyncio.Semaphore(1)
 
     async def two():
-        return await asyncio.gather(orch.answer("q", "choice", OPTS, "balanced", False),
-                                    orch.answer("q", "choice", OPTS, "balanced", False),
-                                    return_exceptions=True)
+        return await asyncio.gather(
+            orch.answer("q", "choice", OPTS, "balanced", False),
+            orch.answer("q", "choice", OPTS, "balanced", False),
+            return_exceptions=True,
+        )
+
     results = asyncio.run(two())
     assert any(isinstance(r, Overloaded) for r in results)
     assert sen.calls == 0
@@ -151,22 +176,31 @@ def test_every_response_carries_versions():
 def test_log_row_never_contains_raw_model_text():
     orch, _, store = make("Answer: A because the user said so", "A")
     run(orch)
-    assert store.rows[0]["j1_answer"] == "A"     # normalized option only
+    assert store.rows[0]["j1_answer"] == "A"  # normalized option only
 
 
 # ---------- privacy ----------
 
-@pytest.mark.parametrize("text", [
-    "mail me at a.b+c@example.co.uk", "call +971 50 123 4567", "my number is 050 123 4567",
-    "Emirates ID 784-1990-1234567-1", "card 4111 1111 1111 1111",
-])
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "mail me at a.b+c@example.co.uk",
+        "call +971 50 123 4567",
+        "my number is 050 123 4567",
+        "Emirates ID 784-1990-1234567-1",
+        "card 4111 1111 1111 1111",
+    ],
+)
 def test_pii_detected(text):
     assert classify(text, False) == SENSITIVE
 
 
-@pytest.mark.parametrize("text", ["Which planet is largest?", "Order 12345 arrived late", "card 1234 5678 9012 3456"])
+@pytest.mark.parametrize(
+    "text", ["Which planet is largest?", "Order 12345 arrived late", "card 1234 5678 9012 3456"]
+)
 def test_plain_text_not_sensitive(text):
-    assert classify(text, False) == NON_SENSITIVE   # last one fails the Luhn check
+    assert classify(text, False) == NON_SENSITIVE  # last one fails the Luhn check
 
 
 def test_flag_always_wins():
@@ -181,6 +215,7 @@ def test_mask_and_hash():
 
 # ---------- circuit breaker ----------
 
+
 def test_breaker_opens_after_threshold_and_half_opens_after_cooldown():
     b = CircuitBreaker(threshold=2, cooldown_s=0.05)
     b.record(False)
@@ -188,6 +223,7 @@ def test_breaker_opens_after_threshold_and_half_opens_after_cooldown():
     b.record(False)
     assert not b.allow()
     import time
+
     time.sleep(0.06)
     assert b.allow()
     b.record(True)

@@ -12,6 +12,7 @@ Behaviour per model is set with POST /control, e.g. {"junior-a": "answer:B", "se
   error           HTTP 500
   timeout         sleep 60 s (longer than any router timeout)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,7 +38,7 @@ def _record(kind: str, payload: dict) -> None:
 
 async def _behave(name: str, user_text: str) -> str | JSONResponse:
     b = state.get(name, "answer:A")
-    if b.startswith("slow:"):            # slow:<seconds>:<answer>  e.g. slow:2:A
+    if b.startswith("slow:"):  # slow:<seconds>:<answer>  e.g. slow:2:A
         _, secs, ans = b.split(":", 2)
         await asyncio.sleep(float(secs))
         return ans
@@ -84,9 +85,15 @@ async def ollama_chat(request: Request):
     out = await _behave(body.get("model", ""), user)
     if isinstance(out, JSONResponse):
         return out
-    return {"model": body.get("model"), "message": {"role": "assistant", "content": out},
-            "done": True, "prompt_eval_count": len(user) // 4, "eval_count": 2,
-            "total_duration": 1_000_000, "load_duration": 0}
+    return {
+        "model": body.get("model"),
+        "message": {"role": "assistant", "content": out},
+        "done": True,
+        "prompt_eval_count": len(user) // 4,
+        "eval_count": 2,
+        "total_duration": 1_000_000,
+        "load_duration": 0,
+    }
 
 
 @app.post("/senior/v1/chat")

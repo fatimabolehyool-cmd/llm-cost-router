@@ -8,6 +8,7 @@ as the router will. Also checks the response contract (shape, name, probabilitie
 
 Usage: python exp2_policy_serving/bench_policy.py --url http://localhost:8090 --n 500
 """
+
 from __future__ import annotations
 
 import argparse
@@ -16,7 +17,7 @@ import json
 import random
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -38,11 +39,21 @@ def pct(xs, p):
 def random_request(rng: random.Random) -> dict:
     ok1, ok2 = rng.random() < 0.97, rng.random() < 0.97
     task = rng.choice(["choice", "label"])
-    x = build(task, 4 if task == "choice" else 77, ok1 and ok2 and rng.random() < 0.6,
-              ok1, ok2, rng.randint(30, 800), rng.randint(1, 300), rng.randint(1, 300))
+    x = build(
+        task,
+        4 if task == "choice" else 77,
+        ok1 and ok2 and rng.random() < 0.6,
+        ok1,
+        ok2,
+        rng.randint(30, 800),
+        rng.randint(1, 300),
+        rng.randint(1, 300),
+    )
     return {
         "id": f"bench-{rng.randrange(10**9)}",
-        "inputs": [{"name": "features", "shape": [1, len(FEATURES)], "datatype": "FP32", "data": x}],
+        "inputs": [
+            {"name": "features", "shape": [1, len(FEATURES)], "datatype": "FP32", "data": x}
+        ],
         "outputs": [{"name": "predict_proba"}],
     }
 
@@ -76,8 +87,14 @@ async def run(url: str, n: int, conc: int) -> None:
         ready = await client.get(f"{url}/v2/health/ready")
         meta = (await client.get(f"{url}/v2/models/routing-policy")).json()
         print("ready:", ready.status_code, "| model metadata:", json.dumps(meta))
-        bad = await client.post(f"{url}/v2/models/routing-policy/infer", json={
-            "inputs": [{"name": "features", "shape": [1, 3], "datatype": "FP32", "data": [1, 0, 0]}]})
+        bad = await client.post(
+            f"{url}/v2/models/routing-policy/infer",
+            json={
+                "inputs": [
+                    {"name": "features", "shape": [1, 3], "datatype": "FP32", "data": [1, 0, 0]}
+                ]
+            },
+        )
         bad_status = bad.status_code  # tells us how the server reports a contract violation
         first_ms, first_err = await call(client, url, random_request(rng))
         for _ in range(50):  # warm-up
@@ -86,9 +103,11 @@ async def run(url: str, n: int, conc: int) -> None:
         seq = [await call(client, url, random_request(rng)) for _ in range(n)]
 
         sem = asyncio.Semaphore(conc)
+
         async def one():
             async with sem:
                 return await call(client, url, random_request(rng))
+
         t0 = time.perf_counter()
         par = await asyncio.gather(*(one() for _ in range(n)))
         par_s = time.perf_counter() - t0
@@ -96,25 +115,37 @@ async def run(url: str, n: int, conc: int) -> None:
     def row(name, res, extra=""):
         ok = [ms for ms, err in res if err is None]
         errs = [err for _, err in res if err]
-        return (f"| {name} | {len(res)} | {100*len(ok)/len(res):.1f}% | {pct(ok,50):.1f} | {pct(ok,95):.1f} | "
-                f"{pct(ok,99):.1f} | {max(ok):.1f} | {'PASS' if pct(ok,95) <= BUDGET_MS else 'FAIL'} {extra}|", errs)
+        return (
+            f"| {name} | {len(res)} | {100 * len(ok) / len(res):.1f}% | {pct(ok, 50):.1f} | {pct(ok, 95):.1f} | "
+            f"{pct(ok, 99):.1f} | {max(ok):.1f} | {'PASS' if pct(ok, 95) <= BUDGET_MS else 'FAIL'} {extra}|",
+            errs,
+        )
 
     r1, e1 = row("sequential, 1 caller", seq)
-    r2, e2 = row(f"stress: {conc} callers back-to-back", par, f"({n/par_s:.0f} req/s) ")
+    r2, e2 = row(f"stress: {conc} callers back-to-back", par, f"({n / par_s:.0f} req/s) ")
     inproc = ROOT / "results" / "exp2_inprocess_latency.json"
     ip = json.loads(inproc.read_text()) if inproc.exists() else {}
     lines = [
-        f"# Experiment 2: policy serving hop ({datetime.now(timezone.utc).isoformat(timespec='seconds')})", "",
+        f"# Experiment 2: policy serving hop ({datetime.now(UTC).isoformat(timespec='seconds')})",
+        "",
         f"Target: {url}/v2/models/routing-policy/infer (V2 Inference Protocol, REST). "
-        f"Budget for this hop: {BUDGET_MS:.0f} ms at p95. Client timeout 1 s. Measured, not estimated.", "",
-        f"Model metadata: `{json.dumps(meta)}`", "",
-        f"First call after warm start: {first_ms:.1f} ms ({first_err or 'ok'})", "",
+        f"Budget for this hop: {BUDGET_MS:.0f} ms at p95. Client timeout 1 s. Measured, not estimated.",
+        "",
+        f"Model metadata: `{json.dumps(meta)}`",
+        "",
+        f"First call after warm start: {first_ms:.1f} ms ({first_err or 'ok'})",
+        "",
         f"Malformed request (3 features instead of {len(FEATURES)}) returned HTTP {bad_status} "
-        f"(a 5xx means the router must validate inputs itself and not trust the status code).", "",
+        f"(a 5xx means the router must validate inputs itself and not trust the status code).",
+        "",
         "| Scenario | Calls | Success | p50 ms | p95 ms | p99 ms | max ms | p95 within budget |",
-        "|---|---|---|---|---|---|---|---|", r1, r2, "",
+        "|---|---|---|---|---|---|---|---|",
+        r1,
+        r2,
+        "",
         f"In-process baseline (same model, no HTTP): p50 {ip.get('p50_ms', float('nan')):.3f} ms, "
-        f"p95 {ip.get('p95_ms', float('nan')):.3f} ms.", "",
+        f"p95 {ip.get('p95_ms', float('nan')):.3f} ms.",
+        "",
         f"Errors: {len(e1) + len(e2)}" + ("" if not (e1 + e2) else f" — first: {(e1 + e2)[0]}"),
     ]
     out = ROOT / "results" / f"exp2_summary_{datetime.now().strftime('%Y%m%d-%H%M')}.md"

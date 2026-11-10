@@ -10,6 +10,7 @@ Writes:
   mlflow.db + mlartifacts/                                       (MLflow run: params, metrics, artifact)
   results/exp2_inprocess_latency.json                            (baseline: predict without HTTP)
 """
+
 from __future__ import annotations
 
 import json
@@ -35,7 +36,7 @@ SEED = 42
 
 
 def synthetic(n: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
-    task = rng.integers(0, 2, n)            # 0 = choice (4 options), 1 = label (77)
+    task = rng.integers(0, 2, n)  # 0 = choice (4 options), 1 = label (77)
     j1_ok = rng.random(n) < 0.97
     j2_ok = rng.random(n) < 0.97
     agree = (rng.random(n) < 0.6) & j1_ok & j2_ok
@@ -43,8 +44,19 @@ def synthetic(n: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]
     t1 = rng.integers(1, 300, n)
     t2 = rng.integers(1, 300, n)
     n_opt = np.where(task == 0, 4, 77)
-    X = np.column_stack([task == 0, task == 1, np.log(n_opt), agree, j1_ok, j2_ok,
-                         np.log1p(prompt), np.log1p(t1), np.log1p(t2)]).astype(np.float32)
+    X = np.column_stack(
+        [
+            task == 0,
+            task == 1,
+            np.log(n_opt),
+            agree,
+            j1_ok,
+            j2_ok,
+            np.log1p(prompt),
+            np.log1p(t1),
+            np.log1p(t2),
+        ]
+    ).astype(np.float32)
     # shape loosely follows the proposal pre-test: ~79% correct when agree, ~47% when not
     p = np.where(agree, 0.79, 0.47) - 0.05 * (task == 1)
     y = (rng.random(n) < p).astype(int)
@@ -61,23 +73,36 @@ def main() -> None:
 
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, MODEL_DIR / "model.joblib")
-    (MODEL_DIR / "model-settings.json").write_text(json.dumps({
-        "name": "routing-policy",
-        "implementation": "mlserver_sklearn.SKLearnModel",
-        "parameters": {"uri": "./model.joblib", "version": MODEL_VERSION},
-    }, indent=2) + "\n")
+    (MODEL_DIR / "model-settings.json").write_text(
+        json.dumps(
+            {
+                "name": "routing-policy",
+                "implementation": "mlserver_sklearn.SKLearnModel",
+                "parameters": {"uri": "./model.joblib", "version": MODEL_VERSION},
+            },
+            indent=2,
+        )
+        + "\n"
+    )
 
     # MLflow 3.x refuses the plain-folder backend; use a database backend (SQLite here,
     # PostgreSQL in the full architecture) with artifacts in a local folder.
     mlflow.set_tracking_uri(f"sqlite:///{ROOT / 'mlflow.db'}")
     if mlflow.get_experiment_by_name("exp2-policy-serving") is None:
-        mlflow.create_experiment("exp2-policy-serving",
-                                 artifact_location=(ROOT / "mlartifacts").as_uri())
+        mlflow.create_experiment(
+            "exp2-policy-serving", artifact_location=(ROOT / "mlartifacts").as_uri()
+        )
     mlflow.set_experiment("exp2-policy-serving")
     with mlflow.start_run(run_name=MODEL_VERSION):
-        mlflow.log_params({**params, "feature_version": FEATURE_VERSION,
-                           "features": ",".join(FEATURES), "data": "synthetic-5000-seed42",
-                           "sklearn_version": sklearn.__version__})
+        mlflow.log_params(
+            {
+                **params,
+                "feature_version": FEATURE_VERSION,
+                "features": ",".join(FEATURES),
+                "data": "synthetic-5000-seed42",
+                "sklearn_version": sklearn.__version__,
+            }
+        )
         mlflow.log_metric("test_auc_synthetic", auc)
         mlflow.log_artifacts(str(MODEL_DIR), artifact_path="mlserver_model")
 
@@ -91,8 +116,14 @@ def main() -> None:
         model.predict_proba(row)
         times.append((time.perf_counter() - t0) * 1000)
     times.sort()
-    res = {"n": 1000, "p50_ms": times[500], "p95_ms": times[950], "p99_ms": times[990],
-           "sklearn": sklearn.__version__, "test_auc_synthetic": auc}
+    res = {
+        "n": 1000,
+        "p50_ms": times[500],
+        "p95_ms": times[950],
+        "p99_ms": times[990],
+        "sklearn": sklearn.__version__,
+        "test_auc_synthetic": auc,
+    }
     (ROOT / "results").mkdir(exist_ok=True)
     (ROOT / "results" / "exp2_inprocess_latency.json").write_text(json.dumps(res, indent=2) + "\n")
     print(json.dumps(res, indent=2))

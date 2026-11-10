@@ -1,9 +1,10 @@
 """Promotion and rollback with MLflow registry aliases (ADR-6). Always a deliberate human action.
 
-  python -m pipelines.registry show
-  python -m pipelines.registry promote --version 3     # champion -> v3, remembers the previous one
-  python -m pipelines.registry rollback                # champion -> the previous champion
+python -m pipelines.registry show
+python -m pipelines.registry promote --version 3     # champion -> v3, remembers the previous one
+python -m pipelines.registry rollback                # champion -> the previous champion
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,13 +44,17 @@ def main() -> int:
     elif a.cmd == "rollback":
         prev = alias_version(c, "previous_champion")
         if not prev:
-            print("nothing to roll back to: the champion falls back to rule-v0 if its alias is removed")
+            print(
+                "nothing to roll back to: the champion falls back to rule-v0 if its alias is removed"
+            )
             return 2
         c.set_registered_model_alias(MODEL, "champion", prev)
         c.delete_registered_model_alias(MODEL, "previous_champion")
 
     for alias in ("champion", "challenger", "previous_champion"):
-        print(f"{alias:18s} -> {alias_version(c, alias) or '(none: rule-v0)' if alias == 'champion' else alias_version(c, alias) or '-'}")
+        print(
+            f"{alias:18s} -> {alias_version(c, alias) or '(none: rule-v0)' if alias == 'champion' else alias_version(c, alias) or '-'}"
+        )
     return 0
 
 

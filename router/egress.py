@@ -6,6 +6,7 @@ Two checks happen here, in this order, for every external call:
 Because every external call goes through this class, "sensitive data never leaves" is
 testable in one place (canary test S3) instead of being scattered through the code.
 """
+
 from __future__ import annotations
 
 from .adapters import HttpSenior, ModelReply
@@ -33,7 +34,9 @@ class EgressGateway:
     def actual_usd(self, reply: ModelReply) -> float:
         return (reply.input_tokens * self.price_in + reply.output_tokens * self.price_out) / 1e6
 
-    async def ask_senior(self, data_class: str, system: str, user: str, max_tokens: int) -> tuple[ModelReply, float]:
+    async def ask_senior(
+        self, data_class: str, system: str, user: str, max_tokens: int
+    ) -> tuple[ModelReply, float]:
         if data_class != NON_SENSITIVE:
             self.blocked_count += 1
             raise EgressBlocked("sensitive data may not leave the system")

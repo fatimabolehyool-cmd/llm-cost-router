@@ -1,0 +1,39 @@
+# Tool configuration only. Runtime dependencies are pinned per container in lock files:
+#   infra/requirements-router.lock      router service (also used by the unit tests in CI)
+#   infra/requirements-mlops.lock       MLflow server, Airflow pipeline environment
+#   exp2_policy_serving/requirements-serving.lock   MLServer policy server
+# Development tools (lint, tests, audit) are pinned in requirements-dev.txt.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["mlartifacts", "results", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# The formatter owns line length; long strings (prompts, Markdown table rows) stay unwrapped.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Frozen experiment scripts from the architecture phase: their closures run inside the same loop
+# iteration, so late binding cannot occur. Kept unchanged so they still reproduce results/.
+"exp1_juniors/*" = ["B023"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: needs PostgreSQL (CI service container, or `make up` locally)",
+    "e2e: needs the full Docker Compose stack",
+]
+
+[tool.coverage.run]
+source = ["router", "common"]
+
+[tool.coverage.report]
+# Ratchet: 60% at the start of the implementation phase (measured 62%). Raised as the API and
+# integration tests land; target 80% (NFR, architecture section A).
+fail_under = 60
+show_missing = true
+skip_empty = true

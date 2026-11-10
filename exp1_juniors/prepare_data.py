@@ -8,6 +8,7 @@ label:  Banking77 test split (mteb/banking77, parquet copy with label_text), cus
 Usage:  python exp1_juniors/prepare_data.py --n-choice 100 --n-label 100
 Output: data/exp1_questions.jsonl, data/banking77_labels.json (+ SHA-256 of the question file)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,29 +37,35 @@ def main() -> None:
     mmlu = load_dataset("cais/mmlu", "all", split="test")
     for i in rng.sample(range(len(mmlu)), args.n_choice):
         r = mmlu[i]
-        options = "\n".join(f"{l}. {c}" for l, c in zip("ABCD", r["choices"]))
-        rows.append({
-            "id": f"mmlu-{i}",
-            "task_type": "choice",
-            "subject": r["subject"],
-            "question": r["question"],
-            "options": options,
-            "gold": "ABCD"[r["answer"]],
-        })
+        options = "\n".join(
+            f"{letter}. {c}" for letter, c in zip("ABCD", r["choices"], strict=True)
+        )
+        rows.append(
+            {
+                "id": f"mmlu-{i}",
+                "task_type": "choice",
+                "subject": r["subject"],
+                "question": r["question"],
+                "options": options,
+                "gold": "ABCD"[r["answer"]],
+            }
+        )
 
     b77 = load_dataset("mteb/banking77", split="test")
     labels = sorted(set(b77["label_text"]))
     assert len(labels) == 77, f"expected 77 categories, got {len(labels)}"
     for i in rng.sample(range(len(b77)), args.n_label):
         r = b77[i]
-        rows.append({
-            "id": f"banking77-{i}",
-            "task_type": "label",
-            "subject": "banking77",
-            "question": r["text"],
-            "options": "",          # the category list is shared; it lives in banking77_labels.json
-            "gold": r["label_text"],
-        })
+        rows.append(
+            {
+                "id": f"banking77-{i}",
+                "task_type": "label",
+                "subject": "banking77",
+                "question": r["text"],
+                "options": "",  # the category list is shared; it lives in banking77_labels.json
+                "gold": r["label_text"],
+            }
+        )
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     LABELS_OUT.write_text(json.dumps(labels, indent=1) + "\n", encoding="utf-8")

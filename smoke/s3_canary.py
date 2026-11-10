@@ -22,6 +22,7 @@ breaker turns later scenarios into 503s and they no longer test the path they cl
 
 Usage (stack running):  python smoke/s3_canary.py            # compose mode
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,20 +31,19 @@ import sys
 import time
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
-
 from harness import CHOICE, LABEL, RESULTS, add_target_args, target_from
 
 JUNIOR_PAIRS = {
-    "agree":          {"junior-a": "answer:A", "junior-b": "answer:A"},
-    "disagree":       {"junior-a": "answer:A", "junior-b": "answer:B"},
-    "both_echo":      {"junior-a": "echo", "junior-b": "echo"},            # models repeat the personal data
-    "j1_timeout":     {"junior-a": "timeout", "junior-b": "answer:B"},
-    "j2_error":       {"junior-a": "answer:A", "junior-b": "error"},
-    "both_error":     {"junior-a": "error", "junior-b": "error"},
-    "unreadable":     {"junior-a": "answer:no idea", "junior-b": "answer:maybe"},
+    "agree": {"junior-a": "answer:A", "junior-b": "answer:A"},
+    "disagree": {"junior-a": "answer:A", "junior-b": "answer:B"},
+    "both_echo": {"junior-a": "echo", "junior-b": "echo"},  # models repeat the personal data
+    "j1_timeout": {"junior-a": "timeout", "junior-b": "answer:B"},
+    "j2_error": {"junior-a": "answer:A", "junior-b": "error"},
+    "both_error": {"junior-a": "error", "junior-b": "error"},
+    "unreadable": {"junior-a": "answer:no idea", "junior-b": "answer:maybe"},
 }
 SENIOR = {"ok": "answer:B", "error": "error", "echo": "echo"}
 MODES = ["cheapest", "balanced", "best_quality"]
@@ -76,17 +76,27 @@ def main() -> int:
         t.mock_reset(c)
         pos_first = positive_control(c, "first")
         for (jname, jpair), (sname, sbeh), mode, task, how in itertools.product(
-                JUNIOR_PAIRS.items(), SENIOR.items(), MODES, [CHOICE, LABEL], ["flag", "pii"]):
+            JUNIOR_PAIRS.items(), SENIOR.items(), MODES, [CHOICE, LABEL], ["flag", "pii"]
+        ):
             pair = label_answers(jpair) if task is LABEL else jpair
             senior = "answer:pin_blocked" if (task is LABEL and sname == "ok") else sbeh
             t.mock_control(c, **pair, senior=senior)
             token = f"CANARY{run_id}x{n:04d}"
             tokens.append(token)
             if how == "flag":
-                body = dict(question=f"Customer {token} asks which one is largest?", sensitive=True, mode=mode, **task)
+                body = dict(
+                    question=f"Customer {token} asks which one is largest?",
+                    sensitive=True,
+                    mode=mode,
+                    **task,
+                )
             else:
-                body = dict(question=f"Reply to {token.lower()}@example.com about their card", sensitive=False,
-                            mode=mode, **task)
+                body = dict(
+                    question=f"Reply to {token.lower()}@example.com about their card",
+                    sensitive=False,
+                    mode=mode,
+                    **task,
+                )
             r = t.ask(c, **body)
             n += 1
             if r.status_code == 200:
@@ -119,22 +129,42 @@ def main() -> int:
         ("Sensitive tokens found in request_log (any column)", len(leaked_db), "0"),
         ("Sensitive tokens found in router logs", len(leaked_logs), "0"),
         ("Sensitive requests misclassified or escalated", len(problems), "0"),
-        ("Positive controls (before and after the matrix) reached the senior", "yes" if pos_ok else "NO", "yes"),
-        ("Sensitive requests that reached the local juniors (sanity)", f"{juniors_saw}/{len(tokens)}", "> 0"),
+        (
+            "Positive controls (before and after the matrix) reached the senior",
+            "yes" if pos_ok else "NO",
+            "yes",
+        ),
+        (
+            "Sensitive requests that reached the local juniors (sanity)",
+            f"{juniors_saw}/{len(tokens)}",
+            "> 0",
+        ),
     ]
-    passed = not (leaked_senior or leaked_db or leaked_logs or problems) and pos_ok and juniors_saw > 0
+    passed = (
+        not (leaked_senior or leaked_db or leaked_logs or problems) and pos_ok and juniors_saw > 0
+    )
 
-    lines = [f"# S3 canary test ({datetime.now(timezone.utc).isoformat(timespec='seconds')})", "",
-             f"**Result: {'PASS' if passed else 'FAIL'}** — {len(tokens)} sensitive requests "
-             f"({len(JUNIOR_PAIRS)} junior behaviours x {len(SENIOR)} senior behaviours x {len(MODES)} modes "
-             f"x 2 task types x 2 ways of being sensitive), run time {time.time() - t0:.0f} s. Measured.", "",
-             "| Check | Observed | Required |", "|---|---|---|",
-             *[f"| {a} | {b} | {c_} |" for a, b, c_ in checks], "",
-             "## Outcomes of the sensitive requests", "", "| Status | Reason | Count |", "|---|---|---|",
-             *[f"| {s} | {r} | {k} |" for (s, r), k in sorted(outcomes.items())], "",
-             "Limitations: mock models, not real ones; the PII detector covers emails, UAE phone numbers, "
-             "Emirates IDs and card numbers (Luhn) only, so other personal data in an unflagged request is a "
-             "stated residual risk."]
+    lines = [
+        f"# S3 canary test ({datetime.now(UTC).isoformat(timespec='seconds')})",
+        "",
+        f"**Result: {'PASS' if passed else 'FAIL'}** — {len(tokens)} sensitive requests "
+        f"({len(JUNIOR_PAIRS)} junior behaviours x {len(SENIOR)} senior behaviours x {len(MODES)} modes "
+        f"x 2 task types x 2 ways of being sensitive), run time {time.time() - t0:.0f} s. Measured.",
+        "",
+        "| Check | Observed | Required |",
+        "|---|---|---|",
+        *[f"| {a} | {b} | {c_} |" for a, b, c_ in checks],
+        "",
+        "## Outcomes of the sensitive requests",
+        "",
+        "| Status | Reason | Count |",
+        "|---|---|---|",
+        *[f"| {s} | {r} | {k} |" for (s, r), k in sorted(outcomes.items())],
+        "",
+        "Limitations: mock models, not real ones; the PII detector covers emails, UAE phone numbers, "
+        "Emirates IDs and card numbers (Luhn) only, so other personal data in an unflagged request is a "
+        "stated residual risk.",
+    ]
     if problems:
         lines += ["", "## Problems", "", *[f"- {p}" for p in problems[:50]]]
     RESULTS.mkdir(exist_ok=True)
