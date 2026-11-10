@@ -1,0 +1,79 @@
+# Continuous integration: runs on every pull request and on every push to main.
+# Jobs are independent so one failure does not hide another.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"   # MLServer 1.7.1 does not install on 3.13 (architecture, section I)
+  GITLEAKS_VERSION: "8.28.0"
+
+jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install "$(grep '^ruff==' requirements-dev.txt)"
+      - run: ruff check --output-format=github .
+      - run: ruff format --check .
+
+  test:
+    name: Unit tests and coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            infra/requirements-router.lock
+            requirements-dev.txt
+      - run: pip install -r infra/requirements-router.lock -r requirements-dev.txt
+      - name: Run tests (fails below the coverage floor in pyproject.toml)
+        run: pytest --cov --cov-report=term-missing --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  security:
+    name: Secret scan and dependency audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # scan the whole history, not only the last commit
+      - name: Secret scan (gitleaks, full history)
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz gitleaks
+          ./gitleaks git --no-banner --redact --config .gitleaks.toml .
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install "$(grep '^pip-audit==' requirements-dev.txt)"
+      - name: Audit router dependencies
+        run: pip-audit --no-deps --disable-pip -r infra/requirements-router.lock
+      - name: Audit MLflow / Airflow pipeline dependencies
+        run: pip-audit --no-deps --disable-pip -r infra/requirements-mlops.lock
+      - name: Audit policy-server dependencies (accepted risks in docs/security/dependency-audit.md)
+        run: >
+          pip-audit --no-deps --disable-pip -r exp2_policy_serving/requirements-serving.lock
+          --ignore-vuln PYSEC-2026-161 --ignore-vuln PYSEC-2026-248 --ignore-vuln PYSEC-2026-249
+          --ignore-vuln PYSEC-2026-1941 --ignore-vuln PYSEC-2026-1942
+          --ignore-vuln PYSEC-2026-2280 --ignore-vuln PYSEC-2026-2281

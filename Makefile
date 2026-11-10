@@ -4,14 +4,28 @@ MODELS ?= gemma3:4b qwen3:4b phi4-mini llama3.2:3b
 # qwen3 was dropped: it reasons out loud and never reached an answer within the token limit.
 MODELS_MID ?= gemma3:12b llama3.1:8b qwen2.5:7b phi4:14b
 
-.PHONY: venv test pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
+.PHONY: venv test lint format cov audit pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
 
 venv:            ## create the host virtual environment
-	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt
+	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt -r requirements-dev.txt
 	mkdir -p results && .venv/bin/pip freeze > results/host-env.txt
 
 test:            ## all unit tests (normalizer, routing rules, privacy, breaker)
 	$(PY) -m pytest -q tests
+
+lint:            ## the same lint and format checks CI runs
+	$(PY) -m ruff check . && $(PY) -m ruff format --check .
+
+format:          ## apply the formatter and safe lint fixes
+	$(PY) -m ruff check --fix . && $(PY) -m ruff format .
+
+cov:             ## unit tests with coverage (fails below the floor in pyproject.toml)
+	$(PY) -m pytest --cov --cov-report=term-missing
+
+audit:           ## secret scan + dependency audit, as in CI (needs `brew install gitleaks`)
+	gitleaks git --no-banner --redact --config .gitleaks.toml .
+	$(PY) -m pip_audit --no-deps --disable-pip -r infra/requirements-router.lock
+	$(PY) -m pip_audit --no-deps --disable-pip -r infra/requirements-mlops.lock
 
 pull:            ## download the candidate junior models into Ollama
 	for m in $(MODELS); do ollama pull $$m; done
