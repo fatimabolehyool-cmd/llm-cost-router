@@ -4,7 +4,7 @@ MODELS ?= gemma3:4b qwen3:4b phi4-mini llama3.2:3b
 # qwen3 was dropped: it reasons out loud and never reached an answer within the token limit.
 MODELS_MID ?= gemma3:12b llama3.1:8b qwen2.5:7b phi4:14b
 
-.PHONY: venv test lint format cov audit pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
+.PHONY: venv test lint format cov audit replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
 
 venv:            ## create the host virtual environment
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt -r requirements-dev.txt
@@ -67,6 +67,27 @@ exp2-stats:      ## memory/CPU of the running policy server
 
 exp2-down:
 	docker compose -f docker-compose.exp2.yml down
+
+# ---------------- real replay pool: training and evaluation data for the policy ----------------
+replay-prepare:  ## sample 3,500 MMLU + 3,500 Banking77 questions (fixed seed, checksummed)
+	$(PY) -m pipelines.build_replay prepare
+
+replay-juniors:  ## both juniors answer every question (Ollama running); resumable; keeps the Mac awake
+	caffeinate -i $(PY) -m pipelines.build_replay run
+
+replay-assemble: ## join questions and answers into data/replay/pool_v1.jsonl (+ SHA-256)
+	$(PY) -m pipelines.build_replay assemble
+
+# ---------------- Experiment 3 (architecture feedback A3) ----------------
+E3_TS := $(shell date +%Y%m%d-%H%M)
+E3_IN_CONTAINER = docker compose run --rm --no-deps -T \
+	-v "$(CURDIR)/exp3_container_ollama:/e3:ro" --entrypoint python router /e3/run_e3.py
+
+e3: env          ## E3: host -> Ollama vs router container -> Ollama (Ollama + Docker Desktop running)
+	$(PY) exp3_container_ollama/run_e3.py measure --url http://localhost:11434 --label host_a --out results/e3_raw_host_a_$(E3_TS).json
+	$(E3_IN_CONTAINER) measure --url http://host.docker.internal:11434 --label container > results/e3_raw_container_$(E3_TS).json || true
+	$(PY) exp3_container_ollama/run_e3.py measure --url http://localhost:11434 --label host_b --out results/e3_raw_host_b_$(E3_TS).json
+	$(PY) exp3_container_ollama/run_e3.py summarize results/e3_raw_host_a_$(E3_TS).json results/e3_raw_container_$(E3_TS).json results/e3_raw_host_b_$(E3_TS).json --out results/e3_summary_$(E3_TS).md
 
 # ---------------- feasibility checks (Docker Desktop must be running) ----------------
 COMPOSE = docker compose --profile mocks

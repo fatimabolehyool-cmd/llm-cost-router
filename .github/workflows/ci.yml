@@ -32,13 +32,18 @@ jobs:
       - run: ruff format --check .
 
   test:
-    name: Unit tests and coverage
+    name: Unit tests and coverage (Python ${{ matrix.python }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11: MLServer and pipeline images; 3.12: router image (infra/router.Dockerfile)
+        python: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: |
             infra/requirements-router.lock
@@ -49,7 +54,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-report
+          name: coverage-report-py${{ matrix.python }}
           path: coverage.xml
 
   security:
