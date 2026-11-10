@@ -5,3 +5,11 @@ __pycache__/
 mlflow.db
 mlartifacts/
 exp2_policy_serving/model_repo/routing-policy/model.joblib
+
+# macOS and coverage artefacts
+.DS_Store
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.ruff_cache/

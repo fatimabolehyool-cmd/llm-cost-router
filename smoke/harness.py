@@ -1,7 +1,8 @@
 """Shared helpers for the feasibility checks. Works in two modes:
-  compose mode (default on the Mac): DB queries and logs go through `docker compose`;
-  native mode (--db-dsn / --log-file): used to test the checks themselves without Docker.
+compose mode (default on the Mac): DB queries and logs go through `docker compose`;
+native mode (--db-dsn / --log-file): used to test the checks themselves without Docker.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -20,30 +21,45 @@ class Target:
     router: str = "http://localhost:8000"
     mock: str = "http://localhost:9100"
     api_key: str = "dev-key-change-me"
-    db_dsn: str | None = None        # native mode
-    log_file: str | None = None      # native mode
+    db_dsn: str | None = None  # native mode
+    log_file: str | None = None  # native mode
 
     # ---- database ----
     def sql(self, query: str) -> list[str]:
         if self.db_dsn:
             cmd = ["psql", self.db_dsn, "-Atc", query]
         else:
-            cmd = COMPOSE + ["exec", "-T", "postgres", "psql", "-U", "router", "-d", "router", "-Atc", query]
+            cmd = COMPOSE + [
+                "exec",
+                "-T",
+                "postgres",
+                "psql",
+                "-U",
+                "router",
+                "-d",
+                "router",
+                "-Atc",
+                query,
+            ]
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if out.returncode != 0:
             raise RuntimeError(f"sql failed: {out.stderr.strip()[:300]}")
-        return [l for l in out.stdout.splitlines() if l]
+        return [line for line in out.stdout.splitlines() if line]
 
     # ---- router logs ----
     def router_logs(self) -> str:
         if self.log_file:
             return Path(self.log_file).read_text(errors="replace")
-        out = subprocess.run(COMPOSE + ["logs", "--no-color", "router"], capture_output=True, text=True, timeout=60)
+        out = subprocess.run(
+            COMPOSE + ["logs", "--no-color", "router"], capture_output=True, text=True, timeout=60
+        )
         return out.stdout + out.stderr
 
     # ---- HTTP ----
     def ask(self, client: httpx.Client, **body) -> httpx.Response:
-        return client.post(f"{self.router}/v1/answer", json=body, headers={"X-API-Key": self.api_key}, timeout=30)
+        return client.post(
+            f"{self.router}/v1/answer", json=body, headers={"X-API-Key": self.api_key}, timeout=30
+        )
 
     def mock_control(self, client: httpx.Client, **behaviour) -> None:
         client.post(f"{self.mock}/control", json=behaviour, timeout=5).raise_for_status()
@@ -68,5 +84,13 @@ def target_from(args) -> Target:
 
 
 CHOICE = dict(task_type="choice", options=["Mars", "Jupiter", "Venus", "Earth"])
-LABEL = dict(task_type="label", options=["card_arrival", "lost_or_stolen_card", "refund_not_showing_up",
-                                          "exchange_rate", "pin_blocked"])
+LABEL = dict(
+    task_type="label",
+    options=[
+        "card_arrival",
+        "lost_or_stolen_card",
+        "refund_not_showing_up",
+        "exchange_rate",
+        "pin_blocked",
+    ],
+)

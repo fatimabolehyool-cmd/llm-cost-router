@@ -1,0 +1,9 @@
+# Secret-scanning rules: gitleaks defaults plus one documented exception.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = ".env.example ships the SHA-256 of the public local-testing key 'dev-key-change-me'; it is a placeholder, not a credential"
+condition = "AND"
+paths = ['''^\.env\.example$''']
+regexes = ['''57c8139db7290a9064aa57837c951138a32df40cca3aca526319f55651368823''']

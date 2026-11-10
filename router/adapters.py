@@ -3,6 +3,7 @@
 Model output is UNTRUSTED: adapters return raw text only; it is normalized to a closed option
 set before use, never executed, and never stored raw (it can echo the user's personal data).
 """
+
 from __future__ import annotations
 
 import time
@@ -50,23 +51,38 @@ class CircuitBreaker:
 class OllamaJunior:
     """Calls Ollama's POST /api/chat (also served by the mock server in tests)."""
 
-    def __init__(self, client: httpx.AsyncClient, base_url: str, model: str, timeout_s: float,
-                 breaker: CircuitBreaker | None = None) -> None:
-        self.client, self.base_url, self.model, self.timeout_s = client, base_url.rstrip("/"), model, timeout_s
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        base_url: str,
+        model: str,
+        timeout_s: float,
+        breaker: CircuitBreaker | None = None,
+    ) -> None:
+        self.client, self.base_url, self.model, self.timeout_s = (
+            client,
+            base_url.rstrip("/"),
+            model,
+            timeout_s,
+        )
         self.breaker = breaker or CircuitBreaker()
 
     async def ask(self, system: str, user: str, max_tokens: int) -> ModelReply:
         if not self.breaker.allow():
             raise ModelUnavailable("circuit_open")
         body = {
-            "model": self.model, "stream": False, "keep_alive": "30m",
+            "model": self.model,
+            "stream": False,
+            "keep_alive": "30m",
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "options": {"temperature": 0, "seed": 42, "num_predict": max_tokens, "num_ctx": 4096},
             "think": False,
         }
         t0 = time.perf_counter()
         try:
-            r = await self.client.post(f"{self.base_url}/api/chat", json=body, timeout=self.timeout_s)
+            r = await self.client.post(
+                f"{self.base_url}/api/chat", json=body, timeout=self.timeout_s
+            )
             r.raise_for_status()
             j = r.json()
         except (httpx.HTTPError, ValueError) as e:
@@ -88,9 +104,22 @@ class HttpSenior:
     It must only ever be called by EgressGateway.
     """
 
-    def __init__(self, client: httpx.AsyncClient, url: str, model: str, api_key: str, timeout_s: float,
-                 breaker: CircuitBreaker | None = None) -> None:
-        self.client, self.url, self.model, self.api_key, self.timeout_s = client, url, model, api_key, timeout_s
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        model: str,
+        api_key: str,
+        timeout_s: float,
+        breaker: CircuitBreaker | None = None,
+    ) -> None:
+        self.client, self.url, self.model, self.api_key, self.timeout_s = (
+            client,
+            url,
+            model,
+            api_key,
+            timeout_s,
+        )
         self.breaker = breaker or CircuitBreaker()
 
     async def ask(self, system: str, user: str, max_tokens: int) -> ModelReply:
@@ -99,9 +128,15 @@ class HttpSenior:
         t0 = time.perf_counter()
         try:
             r = await self.client.post(
-                self.url, timeout=self.timeout_s,
+                self.url,
+                timeout=self.timeout_s,
                 headers={"Authorization": f"Bearer {self.api_key}"},
-                json={"model": self.model, "system": system, "user": user, "max_tokens": max_tokens},
+                json={
+                    "model": self.model,
+                    "system": system,
+                    "user": user,
+                    "max_tokens": max_tokens,
+                },
             )
             r.raise_for_status()
             j = r.json()
@@ -109,6 +144,9 @@ class HttpSenior:
             self.breaker.record(False)
             raise ModelUnavailable(type(e).__name__) from None
         self.breaker.record(True)
-        return ModelReply(text=j.get("text", ""), input_tokens=int(j.get("input_tokens") or 0),
-                          output_tokens=int(j.get("output_tokens") or 0),
-                          latency_ms=(time.perf_counter() - t0) * 1000)
+        return ModelReply(
+            text=j.get("text", ""),
+            input_tokens=int(j.get("input_tokens") or 0),
+            output_tokens=int(j.get("output_tokens") or 0),
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )

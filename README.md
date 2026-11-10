@@ -1,5 +1,7 @@
 # Cost-Aware LLM Router: feasibility evidence for the architecture deliverable
 
+[![CI](https://github.com/fatimabolehyool-cmd/llm-cost-router/actions/workflows/ci.yml/badge.svg)](https://github.com/fatimabolehyool-cmd/llm-cost-router/actions/workflows/ci.yml)
+
 This repository is the start of the project. It currently contains:
 - **two experiments** (Section I of the brief);
 - **three feasibility checks**, which prove every tool named in the architecture runs on this Mac;
@@ -27,6 +29,15 @@ This repository is the start of the project. It currently contains:
    make pull        # ~11 GB: gemma3:4b, qwen3:4b, phi4-mini, llama3.2:3b (4 different labs)
    make data        # 100 MMLU (choice) + 100 Banking77 (label) questions, fixed seed, SHA-256 saved
    ```
+
+## Development checks (the same ones CI runs on every pull request)
+
+```bash
+make lint     # ruff lint + format check
+make cov      # unit tests with the coverage floor from pyproject.toml
+make audit    # gitleaks secret scan + pip-audit on the lock files (brew install gitleaks)
+```
+CI (`.github/workflows/ci.yml`) runs three independent jobs: lint, tests with coverage, and the security scans. Accepted dependency risks are recorded in `docs/security/dependency-audit.md`.
 
 ## E1: juniors (≈ 30–40 min, unattended)
 ```bash

@@ -5,6 +5,7 @@ Transaction boundaries (Section E):
   * the request-log insert is its own write AFTER the response, off the request path;
   * a logging failure never fails a request: rows are dropped and counted instead.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -53,10 +54,29 @@ CREATE TABLE IF NOT EXISTS spend (
 """
 
 LOG_COLUMNS = [
-    "request_id", "task_type", "mode", "data_class", "prompt_hash", "prompt_masked", "n_options",
-    "j1_answer", "j2_answer", "agreed", "escalated", "status", "answer", "verified", "final_model",
-    "reason", "policy_version", "prompt_version", "junior1_model", "junior2_model", "senior_model",
-    "cost_usd", "latency_ms",
+    "request_id",
+    "task_type",
+    "mode",
+    "data_class",
+    "prompt_hash",
+    "prompt_masked",
+    "n_options",
+    "j1_answer",
+    "j2_answer",
+    "agreed",
+    "escalated",
+    "status",
+    "answer",
+    "verified",
+    "final_model",
+    "reason",
+    "policy_version",
+    "prompt_version",
+    "junior1_model",
+    "junior2_model",
+    "senior_model",
+    "cost_usd",
+    "latency_ms",
 ]
 
 
@@ -72,8 +92,10 @@ class Store:
         self.pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=5, command_timeout=2)
         async with self.pool.acquire() as c:
             await c.execute(SCHEMA)
-            await c.execute("INSERT INTO spend (id, cap_usd) VALUES (1, $1) ON CONFLICT (id) DO NOTHING",
-                            self.spend_cap_usd)
+            await c.execute(
+                "INSERT INTO spend (id, cap_usd) VALUES (1, $1) ON CONFLICT (id) DO NOTHING",
+                self.spend_cap_usd,
+            )
         self._writer = asyncio.create_task(self._write_loop())
 
     async def stop(self) -> None:
@@ -95,13 +117,19 @@ class Store:
         async with self.pool.acquire(timeout=1) as c:
             row = await c.fetchrow(
                 "UPDATE spend SET reserved_usd = reserved_usd + $1 "
-                "WHERE id = 1 AND spent_usd + reserved_usd + $1 <= cap_usd RETURNING id", usd)
+                "WHERE id = 1 AND spent_usd + reserved_usd + $1 <= cap_usd RETURNING id",
+                usd,
+            )
         return row is not None
 
     async def settle_spend(self, reserved: float, actual: float) -> None:
         async with self.pool.acquire(timeout=1) as c:
-            await c.execute("UPDATE spend SET reserved_usd = GREATEST(reserved_usd - $1, 0), "
-                            "spent_usd = spent_usd + $2 WHERE id = 1", reserved, actual)
+            await c.execute(
+                "UPDATE spend SET reserved_usd = GREATEST(reserved_usd - $1, 0), "
+                "spent_usd = spent_usd + $2 WHERE id = 1",
+                reserved,
+                actual,
+            )
 
     # ---- asynchronous request log ----
     def enqueue_log(self, row: dict[str, Any]) -> None:

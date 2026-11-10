@@ -3,6 +3,7 @@
 Run: uvicorn router.app:app --host 0.0.0.0 --port 8000
 Logs never contain question text or model output: only request ID, outcome and timings.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -35,7 +36,7 @@ class AnswerRequest(BaseModel):
     sensitive: bool = False
 
     @model_validator(mode="after")
-    def check(self) -> "AnswerRequest":
+    def check(self) -> AnswerRequest:
         if self.task_type == "choice" and len(self.options) != 4:
             raise ValueError("choice questions need exactly 4 options")
         if any(not o.strip() or len(o) > 200 for o in self.options):
@@ -68,11 +69,15 @@ async def lifespan(app: FastAPI):
     client = httpx.AsyncClient(limits=httpx.Limits(max_connections=50))
     store = Store(s.database_url, s.spend_cap_usd)
     await store.start()
+
     def cb() -> CircuitBreaker:
         return CircuitBreaker(s.breaker_threshold, s.breaker_cooldown_s)
+
     j1 = OllamaJunior(client, s.junior1_url, s.junior1_model, s.junior_timeout_s, cb())
     j2 = OllamaJunior(client, s.junior2_url, s.junior2_model, s.junior_timeout_s, cb())
-    senior = HttpSenior(client, s.senior_url, s.senior_model, s.senior_api_key, s.senior_timeout_s, cb())
+    senior = HttpSenior(
+        client, s.senior_url, s.senior_model, s.senior_api_key, s.senior_timeout_s, cb()
+    )
     gateway = EgressGateway(senior, store, s.senior_price_in_per_mtok, s.senior_price_out_per_mtok)
     app.state.settings, app.state.store, app.state.gateway = s, store, gateway
     app.state.orch = Orchestrator(s, j1, j2, gateway, store)
@@ -116,7 +121,11 @@ async def require_api_key(request: Request, x_api_key: str | None = Header(defau
 
 @app.exception_handler(HTTPException)
 async def _http(_: Request, exc: HTTPException) -> JSONResponse:
-    return _error(exc.status_code, str(exc.detail), "missing or invalid API key" if exc.status_code == 401 else "")
+    return _error(
+        exc.status_code,
+        str(exc.detail),
+        "missing or invalid API key" if exc.status_code == 401 else "",
+    )
 
 
 @app.post("/v1/answer", response_model=AnswerResponse, dependencies=[Depends(require_api_key)])
@@ -124,12 +133,20 @@ async def answer(body: AnswerRequest, request: Request):
     if not await request.app.state.store.ping():
         return _error(503, "database_unavailable", "spend cap cannot be enforced; try later")
     try:
-        out = await request.app.state.orch.answer(body.question, body.task_type, body.options,
-                                                  body.mode, body.sensitive)
+        out = await request.app.state.orch.answer(
+            body.question, body.task_type, body.options, body.mode, body.sensitive
+        )
     except Overloaded:
         return _error(503, "overloaded", "junior capacity full; retry later")
     except JuniorsUnavailable:
         return _error(503, "models_unavailable", "local models unavailable")
-    log.info("request_id=%s status=%s reason=%s class=%s escalated=%s latency_ms=%s",
-             out.request_id, out.status, out.reason, out.data_class, out.escalated, out.latency_ms)
+    log.info(
+        "request_id=%s status=%s reason=%s class=%s escalated=%s latency_ms=%s",
+        out.request_id,
+        out.status,
+        out.reason,
+        out.data_class,
+        out.escalated,
+        out.latency_ms,
+    )
     return AnswerResponse(**out.__dict__)
