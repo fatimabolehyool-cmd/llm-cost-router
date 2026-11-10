@@ -96,8 +96,22 @@ def fmt(st: dict, q: str, digits: int) -> str:
     return f"{st[q]:.{digits}f}" if st["n"] else "–"
 
 
+def load_series(path: str) -> dict:
+    """Read one raw series; an empty or broken file means that measurement never ran."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        label = path.rsplit("e3_raw_", 1)[-1].rsplit("_", 2)[0]
+        return {
+            "label": label,
+            "reachable": False,
+            "error": "no output: the measurement did not run",
+        }
+
+
 def summarize(paths: list[str], out: str) -> None:
-    series = [json.load(open(p, encoding="utf-8")) for p in paths]
+    series = [load_series(p) for p in paths]
     lines = [
         "# Experiment 3: router container → Ollama vs host → Ollama",
         "",
@@ -168,7 +182,14 @@ def main() -> int:
         sys.stdout.write(text + "\n")
     else:
         open(args.out, "w", encoding="utf-8").write(text + "\n")
-    return 0 if result.get("reachable") else 2
+    if not result.get("reachable"):
+        print(
+            f"E3: Ollama not reachable at {args.url} ({result.get('error')}). "
+            "Is `ollama serve` running? From a container, is Docker Desktop running?",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
 
 
 if __name__ == "__main__":

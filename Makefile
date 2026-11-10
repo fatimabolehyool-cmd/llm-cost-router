@@ -84,6 +84,8 @@ E3_IN_CONTAINER = docker compose run --rm --no-deps -T \
 	-v "$(CURDIR)/exp3_container_ollama:/e3:ro" --entrypoint python router /e3/run_e3.py
 
 e3: env          ## E3: host -> Ollama vs router container -> Ollama (Ollama + Docker Desktop running)
+	@curl -sf http://localhost:11434/api/version >/dev/null || { echo "Ollama is not reachable on localhost:11434. Start it with 'ollama serve' or the Ollama app."; exit 1; }
+	@docker info >/dev/null 2>&1 || { echo "Docker is not running. Start Docker Desktop and wait until it shows 'Engine running'."; exit 1; }
 	$(PY) exp3_container_ollama/run_e3.py measure --url http://localhost:11434 --label host_a --out results/e3_raw_host_a_$(E3_TS).json
 	$(E3_IN_CONTAINER) measure --url http://host.docker.internal:11434 --label container > results/e3_raw_container_$(E3_TS).json || true
 	$(PY) exp3_container_ollama/run_e3.py measure --url http://localhost:11434 --label host_b --out results/e3_raw_host_b_$(E3_TS).json
