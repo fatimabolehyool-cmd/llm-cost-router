@@ -14,11 +14,9 @@ Decision rules (FR-3, FR-4, FR-11, ADR-3, ADR-9). `rule-v0` is the agreement rul
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from common.normalizer import normalize
 
@@ -26,9 +24,8 @@ from .adapters import ModelUnavailable, OllamaJunior
 from .config import Settings
 from .egress import BudgetExceeded, EgressBlocked, EgressGateway
 from .privacy import SENSITIVE, classify, keyed_hash, mask
+from .prompts import build_prompt, load_prompts
 from .store import Store
-
-CHOICE_LETTERS = ["A", "B", "C", "D"]
 
 
 class Overloaded(Exception):
@@ -59,7 +56,7 @@ class Orchestrator:
         self, s: Settings, j1: OllamaJunior, j2: OllamaJunior, gateway: EgressGateway, store: Store
     ):
         self.s, self.j1, self.j2, self.gateway, self.store = s, j1, j2, gateway, store
-        self.prompts = json.loads(Path(s.prompts_file).read_text())
+        self.prompts = load_prompts(s.prompts_file)
         self.cap = asyncio.Semaphore(s.junior_concurrency_cap)
         self.versions = {
             "api": s.api_version,
@@ -70,20 +67,6 @@ class Orchestrator:
             "senior": s.senior_model,
         }
 
-    def _prompt(self, task_type: str, question: str, options: list[str]) -> tuple[str, str, int]:
-        spec = self.prompts[task_type]
-        if task_type == "choice":
-            opts = "\n".join(
-                f"{letter}. {o}" for letter, o in zip(CHOICE_LETTERS, options, strict=True)
-            )
-        else:
-            opts = "\n".join(options)
-        return (
-            spec["system"],
-            spec["user_template"].format(question=question, options=opts),
-            spec["num_predict"],
-        )
-
     async def answer(
         self, question: str, task_type: str, options: list[str], mode: str, sensitive: bool
     ) -> Outcome:
@@ -91,7 +74,7 @@ class Orchestrator:
         rid = f"req_{uuid.uuid4().hex[:12]}"
         data_class = classify(question + "\n" + "\n".join(options), sensitive)
         labels = options  # option texts (choice) or category names (label), for the normalizer
-        system, user, max_tokens = self._prompt(task_type, question, options)
+        system, user, max_tokens = build_prompt(self.prompts, task_type, question, options)
 
         a1 = a2 = None
         agreed = None

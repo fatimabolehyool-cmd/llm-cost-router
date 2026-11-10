@@ -40,21 +40,10 @@ from sklearn.linear_model import LogisticRegression
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from common.policy_features import FEATURE_VERSION, FEATURES, build  # noqa: E402
+from common.splits import SPLITS, split_of  # noqa: E402
 
 MODEL_NAME = "routing-policy"
 EXPERIMENT = "policy-revalidation"
-SPLITS = (("train", 0.60), ("validation", 0.15), ("release_eval", 0.15), ("test", 0.10))
-
-
-def split_of(group: str) -> str:
-    """Deterministic split by hash of the group key, so near-duplicates never straddle splits."""
-    u = int(hashlib.sha256(group.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
-    acc = 0.0
-    for name, share in SPLITS:
-        acc += share
-        if u <= acc:
-            return name
-    return SPLITS[-1][0]
 
 
 def features(r: dict) -> list[float]:
