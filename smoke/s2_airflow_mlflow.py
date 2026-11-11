@@ -120,7 +120,7 @@ def main() -> int:
         "docker", "stats", "--no-stream", "--format", "{{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}"
     ).stdout
     images = run(*COMPOSE, *PROFILES, "images", "--format", "json").stdout
-    summary_json = next((p for p in sorted(RESULTS.glob("s2_revalidate_*.json"))), None)
+    summary_json = next((p for p in sorted(RESULTS.glob("revalidate_*.json"))), None)
 
     passed = all(ok for *_, ok in rows)
     lines = [

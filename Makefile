@@ -4,7 +4,7 @@ MODELS ?= gemma3:4b qwen3:4b phi4-mini llama3.2:3b
 # qwen3 was dropped: it reasons out loud and never reached an answer within the token limit.
 MODELS_MID ?= gemma3:12b llama3.1:8b qwen2.5:7b phi4:14b
 
-.PHONY: venv test lint format cov audit senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
+.PHONY: venv test lint format cov audit train senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
 
 venv:            ## create the host virtual environment
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt -r requirements-dev.txt
@@ -67,6 +67,16 @@ exp2-stats:      ## memory/CPU of the running policy server
 
 exp2-down:
 	docker compose -f docker-compose.exp2.yml down
+
+# ---------------- policy lifecycle: train + gate through Airflow -> MLflow ----------------
+LIFECYCLE = docker compose --profile orchestration
+FEATURES ?= v2
+
+train: env       ## train and gate the policy via the Airflow DAG (FEATURES=v1|v2); registers a challenger
+	$(LIFECYCLE) up -d --wait --build
+	$(LIFECYCLE) exec -T -e GIT_COMMIT=$$(git rev-parse --short HEAD) airflow \
+		airflow dags test revalidate_policy $$(date +%Y-%m-%d) -c '{"features": "$(FEATURES)"}'
+	@cat results/revalidate_$$(date +%Y-%m-%d)_$(FEATURES).json
 
 # ---------------- senior (Claude Opus 5.5) and Experiment 4 (architecture feedback A4) ----------------
 senior-smoke:    ## one real call to Claude Opus 5.5 (< $0.01); RECORD=1 saves a scrubbed test fixture

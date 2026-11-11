@@ -11,7 +11,7 @@ import os
 from datetime import datetime, timedelta
 
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import DAG
+from airflow.sdk import DAG, Param
 
 PROJECT = os.environ.get("PROJECT_DIR", "/opt/project")
 PYTHON = os.environ.get("PIPELINES_PYTHON", "/opt/pipelines-venv/bin/python")
@@ -27,12 +27,17 @@ with DAG(
     max_active_runs=1,
     default_args={"retries": 1, "retry_delay": timedelta(minutes=2)},
     tags=["router", "mlops"],
+    params={
+        # Real replay pool by default; the synthetic fixture is kept for pipeline smoke tests.
+        "replay_file": Param("data/replay/pool_v1.jsonl", type="string"),
+        "features": Param("v2", enum=["v1", "v2"]),
+    },
 ) as dag:
     BashOperator(
         task_id="revalidate",
         bash_command=(
-            f"{PIPELINE} --data {PROJECT}/data/replay/fixture_v1.jsonl "
-            f"--window {{{{ ds }}}} --out {PROJECT}/results"
+            f"{PIPELINE} --data {PROJECT}/{{{{ params.replay_file }}}} "
+            f"--features {{{{ params.features }}}} --window {{{{ ds }}}} --out {PROJECT}/results"
         ),
         env={
             "MLFLOW_TRACKING_URI": MLFLOW,
