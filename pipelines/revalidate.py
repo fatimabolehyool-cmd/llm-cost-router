@@ -39,15 +39,25 @@ from sklearn.linear_model import LogisticRegression
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from common.policy_features import FEATURE_VERSION, FEATURES, build  # noqa: E402
+from common.policy_features import (  # noqa: E402
+    FEATURE_VERSION,
+    FEATURE_VERSION_V2,
+    FEATURES,
+    FEATURES_V2,
+    answer_prior,
+    build,
+    build_v2,
+    fit_answer_prior,
+)
 from common.splits import SPLITS, split_of  # noqa: E402
 
 MODEL_NAME = "routing-policy"
 EXPERIMENT = "policy-revalidation"
 
 
-def features(r: dict) -> list[float]:
-    return build(
+def features(r: dict, version: str = "v1", prior_table: dict | None = None) -> list[float]:
+    """Feature vector for one replay row, in the order fixed by the feature contract."""
+    args = (
         r["task_type"],
         r["n_options"],
         r["agreed"],
@@ -57,6 +67,10 @@ def features(r: dict) -> list[float]:
         r["j1_tokens"],
         r["j2_tokens"],
     )
+    if version == "v1":
+        return build(*args)
+    prior = answer_prior(prior_table, r["task_type"], r.get("j1_answer"), r.get("j2_answer"))
+    return build_v2(*args, prior)
 
 
 def wilson_upper(errors: int, n: int, z: float = 1.96) -> float:
@@ -88,7 +102,12 @@ def main() -> int:
         "--window", required=True, help="label of the replayed time window, e.g. 2026-W43"
     )
     ap.add_argument("--out", default=str(ROOT / "results"))
+    ap.add_argument(
+        "--features", choices=["v1", "v2"], default="v2", help="feature contract version"
+    )
     args = ap.parse_args()
+    feature_version = FEATURE_VERSION if args.features == "v1" else FEATURE_VERSION_V2
+    feature_names = FEATURES if args.features == "v1" else FEATURES_V2
 
     raw = Path(args.data).read_bytes()
     data_sha = hashlib.sha256(raw).hexdigest()
@@ -97,10 +116,14 @@ def main() -> int:
     for r in rows:
         by_split[split_of(r["group"])].append(r)
 
+    # The prior table (v2) is fitted on the TRAINING split only, so validation and
+    # release-evaluation rows never inform their own features.
+    prior_table = fit_answer_prior(by_split["train"]) if args.features == "v2" else None
+
     def xy(name):
         part = by_split[name]
         return (
-            np.array([features(r) for r in part], dtype=np.float32),
+            np.array([features(r, args.features, prior_table) for r in part], dtype=np.float32),
             np.array([r["junior_correct"] for r in part]),
             np.array([bool(r["agreed"]) for r in part]),
         )
@@ -133,8 +156,8 @@ def main() -> int:
                 "window": args.window,
                 "data_sha256": data_sha,
                 "data_file": Path(args.data).name,
-                "feature_version": FEATURE_VERSION,
-                "features": ",".join(FEATURES),
+                "feature_version": feature_version,
+                "features": ",".join(feature_names),
                 "model": "LogisticRegression(C=1.0)",
                 "threshold": round(threshold, 4),
                 "split_sizes": json.dumps({k: len(v) for k, v in by_split.items()}),
@@ -168,7 +191,21 @@ def main() -> int:
                 indent=2,
             )
         )
-        (pkg / "thresholds.json").write_text(json.dumps({"balanced": threshold}))
+        # Everything the router needs to use this model, versioned with it (interface I5/I7):
+        # the feature contract, the balanced-mode threshold and, for v2, the prior table.
+        (pkg / "policy_meta.json").write_text(
+            json.dumps(
+                {
+                    "model_version": f"run-{run.info.run_id[:8]}",
+                    "feature_version": feature_version,
+                    "features": feature_names,
+                    "thresholds": {"balanced": threshold},
+                    "answer_prior": prior_table,
+                    "data_sha256": data_sha,
+                },
+                indent=1,
+            )
+        )
         mlflow.log_artifacts(str(pkg), artifact_path="mlserver_model")
         info = mlflow.sklearn.log_model(model, name="policy", registered_model_name=MODEL_NAME)
 
@@ -184,6 +221,7 @@ def main() -> int:
         "version": version,
         "alias": "challenger",
         "data_sha256": data_sha,
+        "feature_version": feature_version,
         "threshold": threshold,
         "champion_rule_v0": champion,
         "challenger": challenger,
@@ -194,7 +232,8 @@ def main() -> int:
         else "stay on champion",
     }
     Path(args.out).mkdir(parents=True, exist_ok=True)
-    (Path(args.out) / f"s2_revalidate_{args.window}.json").write_text(json.dumps(summary, indent=2))
+    out_file = Path(args.out) / f"revalidate_{args.window}_{args.features}.json"
+    out_file.write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
     return 0
 

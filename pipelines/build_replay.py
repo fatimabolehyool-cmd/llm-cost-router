@@ -38,6 +38,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from common.normalizer import normalize  # noqa: E402
+from common.policy_features import junior_pick  # noqa: E402  (shared with the router)
 
 DATA = ROOT / "data"
 REPLAY = DATA / "replay"
@@ -81,12 +82,6 @@ def read_jsonl(path: Path) -> list[dict]:
 def options_for(q: dict, labels: list[str]) -> list[str]:
     """Allowed answers: the four option texts (choice) or the shared category list (label)."""
     return q["options"] if q["task_type"] == "choice" else labels
-
-
-def junior_pick(a1: str | None, a2: str | None) -> str | None:
-    """The junior answer the router would return: junior 1's if readable, else junior 2's.
-    Matches the orchestrator (`pick = a1 if a1 is not None else a2`)."""
-    return a1 if a1 is not None else a2
 
 
 def to_replay_row(q: dict, ans: dict, timeout_ms: float) -> dict:
