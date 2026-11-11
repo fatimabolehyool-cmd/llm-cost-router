@@ -18,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
 
-from .adapters import CircuitBreaker, HttpSenior, OllamaJunior
+from .adapters import AnthropicSenior, CircuitBreaker, HttpSenior, OllamaJunior
 from .config import Settings
 from .egress import EgressGateway
 from .orchestrator import JuniorsUnavailable, Orchestrator, Overloaded
@@ -63,6 +63,28 @@ class AnswerResponse(BaseModel):
     versions: dict
 
 
+def build_senior(
+    s: Settings, client: httpx.AsyncClient, breaker: CircuitBreaker
+) -> HttpSenior | AnthropicSenior:
+    """Pick the senior adapter. The real API key is only ever given to the real provider:
+    the mock receives a placeholder, so a test run can never send the key anywhere."""
+    if s.senior_provider == "anthropic":
+        return AnthropicSenior(
+            client,
+            s.senior_url,
+            s.senior_model,
+            s.senior_api_key,
+            s.senior_timeout_s,
+            api_version=s.senior_api_version,
+            effort=s.senior_effort or None,
+            thinking_headroom=s.senior_thinking_headroom,
+            breaker=breaker,
+        )
+    return HttpSenior(
+        client, s.senior_url, s.senior_model, "mock-no-key", s.senior_timeout_s, breaker
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     s = Settings()
@@ -75,9 +97,7 @@ async def lifespan(app: FastAPI):
 
     j1 = OllamaJunior(client, s.junior1_url, s.junior1_model, s.junior_timeout_s, cb())
     j2 = OllamaJunior(client, s.junior2_url, s.junior2_model, s.junior_timeout_s, cb())
-    senior = HttpSenior(
-        client, s.senior_url, s.senior_model, s.senior_api_key, s.senior_timeout_s, cb()
-    )
+    senior = build_senior(s, client, cb())
     gateway = EgressGateway(senior, store, s.senior_price_in_per_mtok, s.senior_price_out_per_mtok)
     app.state.settings, app.state.store, app.state.gateway = s, store, gateway
     app.state.orch = Orchestrator(s, j1, j2, gateway, store)

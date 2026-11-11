@@ -35,6 +35,9 @@ class FakeModel:
             return ModelReply("A", 10, 1, 200)
         return ModelReply(self.behaviour, 10, 1, 5)
 
+    def output_budget(self, max_tokens):
+        return max_tokens
+
 
 class FakeStore:
     def __init__(self, budget_ok=True):

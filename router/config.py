@@ -45,7 +45,16 @@ class Settings:
         default_factory=lambda: float(_env("BREAKER_COOLDOWN_S", "60"))
     )
 
-    # Senior: reached ONLY through the egress gateway
+    # Senior: reached ONLY through the egress gateway. Provider "mock" (tests, S1-S3) or
+    # "anthropic" (Claude Messages API, interface I4).
+    senior_provider: str = field(default_factory=lambda: _env("SENIOR_PROVIDER", "mock"))
+    senior_api_version: str = field(
+        default_factory=lambda: _env("SENIOR_API_VERSION", "2026-10-21")
+    )
+    senior_effort: str = field(default_factory=lambda: _env("SENIOR_EFFORT", "low"))
+    senior_thinking_headroom: int = field(
+        default_factory=lambda: int(_env("SENIOR_THINKING_HEADROOM", "1024"))
+    )
     senior_url: str = field(
         default_factory=lambda: _env("SENIOR_URL", "http://mock-models:9100/senior/v1/chat")
     )
@@ -68,3 +77,13 @@ class Settings:
     prompts_file: str = field(
         default_factory=lambda: _env("PROMPTS_FILE", "prompts/junior_prompts_v2.json")
     )
+
+    def __post_init__(self) -> None:
+        """Fail at start-up, not on the first paid call, when the senior is misconfigured."""
+        if self.senior_provider not in ("mock", "anthropic"):
+            raise RuntimeError("SENIOR_PROVIDER must be 'mock' or 'anthropic'")
+        if self.senior_provider == "anthropic":
+            if not self.senior_url.startswith("https://"):
+                raise RuntimeError("SENIOR_URL must be an https:// URL for the anthropic provider")
+            if not self.senior_api_key.startswith("sk-ant-"):
+                raise RuntimeError("SENIOR_API_KEY is not set to an Anthropic key")
