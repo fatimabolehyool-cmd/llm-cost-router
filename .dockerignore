@@ -1,0 +1,22 @@
+# Keep the Docker build context small and free of secrets. Each Dockerfile COPYs only what it
+# needs (lock files, common/, router/, prompts/, mock_models/); everything else stays out.
+.env
+.env.*
+!.env.example
+.git
+.github
+.venv
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.coverage*
+coverage.xml
+htmlcov
+mlartifacts
+mlflow.db
+mlruns
+data/replay
+results
+docs
+*.md
+.DS_Store
