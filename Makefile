@@ -4,7 +4,7 @@ MODELS ?= gemma3:4b qwen3:4b phi4-mini llama3.2:3b
 # qwen3 was dropped: it reasons out loud and never reached an answer within the token limit.
 MODELS_MID ?= gemma3:12b llama3.1:8b qwen2.5:7b phi4:14b
 
-.PHONY: venv test lint format cov audit replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
+.PHONY: venv test lint format cov audit senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
 
 venv:            ## create the host virtual environment
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt -r requirements-dev.txt
@@ -67,6 +67,15 @@ exp2-stats:      ## memory/CPU of the running policy server
 
 exp2-down:
 	docker compose -f docker-compose.exp2.yml down
+
+# ---------------- senior (Claude Opus 5.5) and Experiment 4 (architecture feedback A4) ----------------
+senior-smoke:    ## one real call to Claude Opus 5.5 (< $0.01); RECORD=1 saves a scrubbed test fixture
+	$(PY) exp4_senior_baseline/run_e4.py smoke $(if $(RECORD),--record,)
+
+e4:              ## E4: Opus 5.5 and Haiku 5.5 on the 200 E1 questions; each run stops at $2 of actual spend
+	$(PY) exp4_senior_baseline/run_e4.py run --model claude-opus-5-5 --tag opus --effort low
+	$(PY) exp4_senior_baseline/run_e4.py run --model claude-haiku-5-5 --tag haiku --effort low --thinking disabled
+	$(PY) exp4_senior_baseline/run_e4.py summarize
 
 # ---------------- real replay pool: training and evaluation data for the policy ----------------
 replay-prepare:  ## sample 3,500 MMLU + 3,500 Banking77 questions (fixed seed, checksummed)

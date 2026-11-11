@@ -9,9 +9,19 @@ testable in one place (canary test S3) instead of being scattered through the co
 
 from __future__ import annotations
 
-from .adapters import HttpSenior, ModelReply
+from typing import Protocol
+
+from .adapters import ModelReply
 from .privacy import NON_SENSITIVE
 from .store import Store
+
+
+class SeniorModel(Protocol):
+    """What the gateway needs from a senior adapter (HttpSenior mock, AnthropicSenior)."""
+
+    def output_budget(self, max_tokens: int) -> int: ...
+
+    async def ask(self, system: str, user: str, max_tokens: int) -> ModelReply: ...
 
 
 class EgressBlocked(Exception):
@@ -23,7 +33,13 @@ class BudgetExceeded(Exception):
 
 
 class EgressGateway:
-    def __init__(self, senior: HttpSenior, store: Store, price_in: float, price_out: float) -> None:
+    def __init__(
+        self,
+        senior: SeniorModel,
+        store: Store,
+        price_in: float,
+        price_out: float,
+    ) -> None:
         self.senior, self.store = senior, store
         self.price_in, self.price_out = price_in, price_out  # USD per million tokens
         self.blocked_count = 0
@@ -40,7 +56,8 @@ class EgressGateway:
         if data_class != NON_SENSITIVE:
             self.blocked_count += 1
             raise EgressBlocked("sensitive data may not leave the system")
-        estimate = self.estimate_usd(len(system) + len(user), max_tokens)
+        # Reserve the worst case: every token the adapter may be billed for (thinking included).
+        estimate = self.estimate_usd(len(system) + len(user), self.senior.output_budget(max_tokens))
         if not await self.store.reserve_spend(estimate):
             raise BudgetExceeded("global spend cap reached")
         try:

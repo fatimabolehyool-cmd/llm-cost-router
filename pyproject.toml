@@ -32,8 +32,8 @@ markers = [
 source = ["router", "common"]
 
 [tool.coverage.report]
-# Ratchet: 60% at the start of the implementation phase (measured 62%). Raised as the API and
-# integration tests land; target 80% (NFR, architecture section A).
-fail_under = 60
+# Ratchet: 60% at the start of the implementation phase (measured 62%); 75% after the senior
+# adapter tests (measured 77%). Raised as the API and integration tests land; target 80% (NFR).
+fail_under = 75
 show_missing = true
 skip_empty = true
