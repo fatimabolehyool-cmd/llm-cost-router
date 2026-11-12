@@ -33,7 +33,7 @@ source = ["router", "common"]
 
 [tool.coverage.report]
 # Ratchet: 60% at the start of the implementation phase (measured 62%); 75% after the senior
-# adapter tests (measured 77%). Raised as the API and integration tests land; target 80% (NFR).
-fail_under = 75
+# adapter tests (77%); 80% (the NFR target) once policy, monitoring and audit tests landed (80.6%).
+fail_under = 80
 show_missing = true
 skip_empty = true

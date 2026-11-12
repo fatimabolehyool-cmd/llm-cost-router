@@ -4,7 +4,11 @@ MODELS ?= gemma3:4b qwen3:4b phi4-mini llama3.2:3b
 # qwen3 was dropped: it reasons out loud and never reached an answer within the token limit.
 MODELS_MID ?= gemma3:12b llama3.1:8b qwen2.5:7b phi4:14b
 
-.PHONY: venv test lint format cov audit train registry promote rollback real-up real-ask real-down senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
+# Preflight checks: fail with one clear sentence instead of a stack trace.
+DOCKER_UP = @docker info >/dev/null 2>&1 || { echo "Docker is not running. Start Docker Desktop and wait until it shows 'Engine running'."; exit 1; }
+OLLAMA_UP = @curl -sf http://localhost:11434/api/version >/dev/null || { echo "Ollama is not reachable on localhost:11434. Start it with 'ollama serve' or the Ollama app."; exit 1; }
+
+.PHONY: venv test lint format cov audit monitoring-up eval-seniors eval-report train registry promote rollback real-up real-ask real-down senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
 
 venv:            ## create the host virtual environment
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt -r requirements-dev.txt
@@ -73,6 +77,7 @@ LIFECYCLE = docker compose --profile orchestration
 FEATURES ?= v2
 
 train: env       ## train and gate the policy via the Airflow DAG (FEATURES=v1|v2); registers a challenger
+	$(DOCKER_UP)
 	$(LIFECYCLE) up -d --wait --build
 	$(LIFECYCLE) exec -T -e GIT_COMMIT=$$(git rev-parse --short HEAD) airflow \
 		airflow dags test revalidate_policy $$(date +%Y-%m-%d) -c '{"features": "$(FEATURES)"}'
@@ -81,25 +86,48 @@ train: env       ## train and gate the policy via the Airflow DAG (FEATURES=v1|v
 REGISTRY = $(LIFECYCLE) exec -T -w /opt/project airflow /opt/pipelines-venv/bin/python -m pipelines.registry
 
 registry:        ## which MLflow versions are champion / challenger / previous champion
+	$(DOCKER_UP)
+	$(LIFECYCLE) up -d --wait
 	$(REGISTRY) show
 
 promote:         ## make promote VERSION=3 (refused unless it passed the gate); exports it for serving
+	@[ -n "$(VERSION)" ] || { echo "Usage: make promote VERSION=<registry version>"; exit 1; }
+	$(DOCKER_UP)
+	$(LIFECYCLE) up -d --wait
 	$(REGISTRY) promote --version $(VERSION)
 
 rollback:        ## champion -> previous champion; exports it for serving
+	$(DOCKER_UP)
+	$(LIFECYCLE) up -d --wait
 	$(REGISTRY) rollback
 
 # ---------------- the real stack: Ollama juniors, Claude senior, MLServer policy ----------------
 REAL = docker compose -f docker-compose.yml -f infra/compose.real.yml --profile policy
 
 real-up: env     ## start/restart router + policy server with the exported champion (Ollama must run)
+	$(DOCKER_UP)
+	$(OLLAMA_UP)
 	$(REAL) up -d --wait --build --force-recreate postgres policy-server router
 
 real-ask:        ## a few real requests through the stack (< $0.01); prints the routing records
 	$(PY) smoke/ask.py
 
+monitoring-up:   ## Prometheus (localhost:9090) + Grafana dashboard (localhost:3000), provisioned from deploy/
+	$(DOCKER_UP)
+	$(REAL) --profile monitoring up -d --wait prometheus grafana
+	@echo "Dashboard: http://localhost:3000  (alerts: http://localhost:9090/alerts)"
+
 real-down:       ## stop the real stack (data volumes are kept)
-	$(REAL) down
+	$(REAL) --profile monitoring down
+
+# ---------------- held-out evaluation on the test split (never used for training or the gate) ----------------
+eval-seniors:    ## Opus 5.5 + Haiku 5.5 on the 689 test questions (~10 min, ~$2; resumable, stops at $3 each)
+	$(PY) -m pipelines.evaluate seniors --model claude-opus-5-5 --tag opus --effort low
+	$(PY) -m pipelines.evaluate seniors --model claude-haiku-5-5 --tag haiku --effort low --thinking disabled
+
+eval-report:     ## evaluation table + cost/accuracy sweep; policy probabilities from MLServer (make real-up)
+	$(DOCKER_UP)
+	$(PY) -m pipelines.evaluate report
 
 # ---------------- senior (Claude Opus 5.5) and Experiment 4 (architecture feedback A4) ----------------
 senior-smoke:    ## one real call to Claude Opus 5.5 (< $0.01); RECORD=1 saves a scrubbed test fixture
@@ -126,8 +154,8 @@ E3_IN_CONTAINER = docker compose run --rm --no-deps -T \
 	-v "$(CURDIR)/exp3_container_ollama:/e3:ro" --entrypoint python router /e3/run_e3.py
 
 e3: env          ## E3: host -> Ollama vs router container -> Ollama (Ollama + Docker Desktop running)
-	@curl -sf http://localhost:11434/api/version >/dev/null || { echo "Ollama is not reachable on localhost:11434. Start it with 'ollama serve' or the Ollama app."; exit 1; }
-	@docker info >/dev/null 2>&1 || { echo "Docker is not running. Start Docker Desktop and wait until it shows 'Engine running'."; exit 1; }
+	$(OLLAMA_UP)
+	$(DOCKER_UP)
 	$(PY) exp3_container_ollama/run_e3.py measure --url http://localhost:11434 --label host_a --out results/e3_raw_host_a_$(E3_TS).json
 	$(E3_IN_CONTAINER) measure --url http://host.docker.internal:11434 --label container > results/e3_raw_container_$(E3_TS).json || true
 	$(PY) exp3_container_ollama/run_e3.py measure --url http://localhost:11434 --label host_b --out results/e3_raw_host_b_$(E3_TS).json
@@ -142,8 +170,9 @@ env:             ## create .env from the example on first use (local testing val
 s1: env          ## S1: core stack starts, serves all modes, fails safely, recovers
 	$(PY) smoke/s1_compose.py
 
-s3: env          ## S3: canary test, sensitive data never leaves (breaker cooldown 0 during the test)
-	BREAKER_COOLDOWN_S=0 $(COMPOSE) up -d --wait --build router
+s3: env          ## S3: canary test, sensitive data never leaves (breaker cooldown 0, every answer audited)
+	$(DOCKER_UP)
+	BREAKER_COOLDOWN_S=0 AUDIT_RATE=1 $(COMPOSE) up -d --wait --build router
 	$(PY) smoke/s3_canary.py; status=$$?; $(COMPOSE) up -d --wait router; exit $$status
 
 s2: env          ## S2: Airflow runs the pipeline, MLflow registers the challenger (big download first time)

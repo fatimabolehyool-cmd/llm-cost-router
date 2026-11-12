@@ -80,6 +80,9 @@ class Settings:
     )
     policy_timeout_s: float = field(default_factory=lambda: float(_env("POLICY_TIMEOUT_S", "0.06")))
 
+    # Audit sampling (ADR-26): share of accepted, non-sensitive answers re-asked to the senior
+    audit_rate: float = field(default_factory=lambda: float(_env("AUDIT_RATE", "0.05")))
+
     # Versions (ADR-17)
     api_version: str = "v1"
     policy_version: str = field(default_factory=lambda: _env("POLICY_VERSION", "rule-v0"))

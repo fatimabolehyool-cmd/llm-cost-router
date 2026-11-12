@@ -16,9 +16,13 @@ Method:
     MUST appear at the mock senior. If it does not, the test cannot see leaks and is invalid.
   * Sanity: the sensitive tokens MUST appear at the mock juniors (local models legitimately see the
     question), proving the requests really went through the pipeline.
+  * Audit path (architecture feedback A1): the router runs with AUDIT_RATE=1, so EVERY accepted
+    answer is eligible for an audit call to the senior. A second positive control sends a
+    non-sensitive request the juniors agree on; its token MUST reach the senior through the audit
+    path, proving that path is live while the sensitive tokens still never arrive.
 
-Run with BREAKER_COOLDOWN_S=0 on the router (`make s3` does this), otherwise an open circuit
-breaker turns later scenarios into 503s and they no longer test the path they claim to.
+Run with BREAKER_COOLDOWN_S=0 and AUDIT_RATE=1 on the router (`make s3` does both); otherwise an
+open circuit breaker turns later scenarios into 503s, or audits are too rare to test the path.
 
 Usage (stack running):  python smoke/s3_canary.py            # compose mode
 """
@@ -72,9 +76,21 @@ def main() -> int:
         r = t.ask(c, question=f"Plain question {tok} about planets?", mode="balanced", **CHOICE)
         return tok if r.status_code == 200 and r.json().get("escalated") else ""
 
+    def audit_control(c: httpx.Client) -> str:
+        tok = f"AUDITCTRL{run_id}"
+        t.mock_control(c, **JUNIOR_PAIRS["agree"], senior="answer:A")
+        r = t.ask(c, question=f"Plain question {tok} about planets?", mode="balanced", **CHOICE)
+        ok = (
+            r.status_code == 200
+            and not r.json().get("escalated")
+            and r.json()["status"] == "answered"
+        )
+        return tok if ok else ""
+
     with httpx.Client() as c:
         t.mock_reset(c)
         pos_first = positive_control(c, "first")
+        audit_tok = audit_control(c)
         for (jname, jpair), (sname, sbeh), mode, task, how in itertools.product(
             JUNIOR_PAIRS.items(), SENIOR.items(), MODES, [CHOICE, LABEL], ["flag", "pii"]
         ):
@@ -112,7 +128,7 @@ def main() -> int:
                 problems.append(f"{token}: unexpected HTTP {r.status_code}")
 
         pos_last = positive_control(c, "last")
-        time.sleep(2)  # let the async logger flush
+        time.sleep(4)  # let background audits finish and the async logger flush
         senior_seen = "\n".join(t.mock_records(c, "senior"))
         junior_seen = "\n".join(t.mock_records(c, "juniors"))
 
@@ -123,6 +139,7 @@ def main() -> int:
     leaked_logs = [tk for tk in tokens if tk in logs or tk.lower() in logs]
     juniors_saw = sum(1 for tk in tokens if tk in junior_seen or tk.lower() in junior_seen)
     pos_ok = bool(pos_first and pos_last and pos_first in senior_seen and pos_last in senior_seen)
+    audit_ok = bool(audit_tok and audit_tok in senior_seen)
 
     checks = [
         ("Sensitive tokens found at the external (senior) provider", len(leaked_senior), "0"),
@@ -135,13 +152,21 @@ def main() -> int:
             "yes",
         ),
         (
+            "Audit positive control (accepted, non-sensitive) reached the senior via the audit path",
+            "yes" if audit_ok else "NO",
+            "yes",
+        ),
+        (
             "Sensitive requests that reached the local juniors (sanity)",
             f"{juniors_saw}/{len(tokens)}",
             "> 0",
         ),
     ]
     passed = (
-        not (leaked_senior or leaked_db or leaked_logs or problems) and pos_ok and juniors_saw > 0
+        not (leaked_senior or leaked_db or leaked_logs or problems)
+        and pos_ok
+        and audit_ok
+        and juniors_saw > 0
     )
 
     lines = [

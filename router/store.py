@@ -89,7 +89,24 @@ MIGRATIONS: list[tuple[str, str]] = [
         "002_policy_probability",
         "ALTER TABLE request_log ADD COLUMN IF NOT EXISTS policy_p REAL;  -- P(correct), if used",
     ),
+    (
+        "003_audit_sampling",
+        """
+        ALTER TABLE request_log ADD COLUMN IF NOT EXISTS audit_answer TEXT;
+        ALTER TABLE request_log ADD COLUMN IF NOT EXISTS audit_agrees BOOLEAN;
+        ALTER TABLE request_log ADD COLUMN IF NOT EXISTS audit_cost_usd NUMERIC(12, 6);
+        ALTER TABLE request_log ADD COLUMN IF NOT EXISTS audited_at TIMESTAMPTZ;
+        -- Human review queue (ADR-26): accepted answers the senior disagreed with.
+        CREATE OR REPLACE VIEW audit_review_queue AS
+            SELECT request_id, created_at, task_type, answer, audit_answer, audited_at
+            FROM request_log WHERE audit_agrees = false;
+        """,
+    ),
 ]
+AUDIT_SQL = (
+    "UPDATE request_log SET audit_answer = $2, audit_agrees = $3, audit_cost_usd = $4, "
+    "audited_at = now() WHERE request_id = $1"
+)
 MIGRATION_LOCK = 727_001  # arbitrary constant for pg_advisory_lock
 
 
@@ -178,6 +195,11 @@ class Store:
         except asyncio.QueueFull:
             self.dropped += 1
 
+    def enqueue_audit(self, result: dict[str, Any]) -> None:
+        """Audit results travel through the same FIFO queue, so they are written after the
+        request's own row (which was queued when the response was built)."""
+        self.enqueue_log({"_op": "audit", **result})
+
     async def _write_loop(self) -> None:
         cols = ", ".join(LOG_COLUMNS)
         params = ", ".join(f"${i}" for i in range(1, len(LOG_COLUMNS) + 1))
@@ -186,7 +208,16 @@ class Store:
             row = await self.queue.get()
             try:
                 async with self.pool.acquire(timeout=2) as c:
-                    await c.execute(sql, *[row.get(k) for k in LOG_COLUMNS])
+                    if row.get("_op") == "audit":
+                        await c.execute(
+                            AUDIT_SQL,
+                            row["request_id"],
+                            row["audit_answer"],
+                            row["audit_agrees"],
+                            row["audit_cost_usd"],
+                        )
+                    else:
+                        await c.execute(sql, *[row.get(k) for k in LOG_COLUMNS])
             except Exception as e:  # noqa: BLE001 - never crash the writer; count and move on
                 self.dropped += 1
                 log.warning("request_log write dropped: %s", type(e).__name__)
