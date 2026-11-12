@@ -1,0 +1,444 @@
+{
+ "source": "replay pool v1, test split (MMLU: MIT licence; Banking77: CC BY 4.0)",
+ "labels": [
+  "Refund_not_showing_up",
+  "activate_my_card",
+  "age_limit",
+  "apple_pay_or_google_pay",
+  "atm_support",
+  "automatic_top_up",
+  "balance_not_updated_after_bank_transfer",
+  "balance_not_updated_after_cheque_or_cash_deposit",
+  "beneficiary_not_allowed",
+  "cancel_transfer",
+  "card_about_to_expire",
+  "card_acceptance",
+  "card_arrival",
+  "card_delivery_estimate",
+  "card_linking",
+  "card_not_working",
+  "card_payment_fee_charged",
+  "card_payment_not_recognised",
+  "card_payment_wrong_exchange_rate",
+  "card_swallowed",
+  "cash_withdrawal_charge",
+  "cash_withdrawal_not_recognised",
+  "change_pin",
+  "compromised_card",
+  "contactless_not_working",
+  "country_support",
+  "declined_card_payment",
+  "declined_cash_withdrawal",
+  "declined_transfer",
+  "direct_debit_payment_not_recognised",
+  "disposable_card_limits",
+  "edit_personal_details",
+  "exchange_charge",
+  "exchange_rate",
+  "exchange_via_app",
+  "extra_charge_on_statement",
+  "failed_transfer",
+  "fiat_currency_support",
+  "get_disposable_virtual_card",
+  "get_physical_card",
+  "getting_spare_card",
+  "getting_virtual_card",
+  "lost_or_stolen_card",
+  "lost_or_stolen_phone",
+  "order_physical_card",
+  "passcode_forgotten",
+  "pending_card_payment",
+  "pending_cash_withdrawal",
+  "pending_top_up",
+  "pending_transfer",
+  "pin_blocked",
+  "receiving_money",
+  "request_refund",
+  "reverted_card_payment?",
+  "supported_cards_and_currencies",
+  "terminate_account",
+  "top_up_by_bank_transfer_charge",
+  "top_up_by_card_charge",
+  "top_up_by_cash_or_cheque",
+  "top_up_failed",
+  "top_up_limits",
+  "top_up_reverted",
+  "topping_up_by_card",
+  "transaction_charged_twice",
+  "transfer_fee_charged",
+  "transfer_into_account",
+  "transfer_not_received_by_recipient",
+  "transfer_timing",
+  "unable_to_verify_identity",
+  "verify_my_identity",
+  "verify_source_of_funds",
+  "verify_top_up",
+  "virtual_card_not_working",
+  "visa_or_mastercard",
+  "why_verify_identity",
+  "wrong_amount_of_cash_received",
+  "wrong_exchange_rate_for_cash_withdrawal"
+ ],
+ "items": [
+  {
+   "id": "mmlu-test-7566",
+   "task_type": "choice",
+   "question": "Simple accompaniments, light texture and smooth melodies are qualities of",
+   "options": [
+    "galant style",
+    "partitas",
+    "Sturm und Drang",
+    "serenade"
+   ],
+   "gold": "A"
+  },
+  {
+   "id": "mmlu-test-3452",
+   "task_type": "choice",
+   "question": "All the following factors can be considered pull factors of migration EXCEPT",
+   "options": [
+    "safety.",
+    "better climate.",
+    "better schools.",
+    "overcrowding."
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "mmlu-test-3589",
+   "task_type": "choice",
+   "question": "The Basques, Bretons, Kashmiris, and Tamils are all examples of",
+   "options": [
+    "regionalist groups.",
+    "separatist groups.",
+    "terrorist groups.",
+    "interventionist groups."
+   ],
+   "gold": "B"
+  },
+  {
+   "id": "banking77-train-5094",
+   "task_type": "label",
+   "question": "Why is my payment in pending status?",
+   "gold": "pending_card_payment"
+  },
+  {
+   "id": "banking77-train-9335",
+   "task_type": "label",
+   "question": "I saw I was charged extra for money I withdrew?",
+   "gold": "cash_withdrawal_charge"
+  },
+  {
+   "id": "mmlu-test-10329",
+   "task_type": "choice",
+   "question": "The development of civilization in Mesopotamia is associated with the _______, during the ______.",
+   "options": [
+    "first writing; Amratian Period",
+    "first cities; Uruk Period]",
+    "first religious specialists; New Temple Period",
+    "first permanent military; Nagada I Period"
+   ],
+   "gold": "B"
+  },
+  {
+   "id": "banking77-test-2337",
+   "task_type": "label",
+   "question": "What methods can I use to add money to my account?",
+   "gold": "transfer_into_account"
+  },
+  {
+   "id": "banking77-train-5391",
+   "task_type": "label",
+   "question": "What is the refund policy?",
+   "gold": "request_refund"
+  },
+  {
+   "id": "mmlu-test-4037",
+   "task_type": "choice",
+   "question": "Which of the following is not an addition to national income?",
+   "options": [
+    "Wages",
+    "Salaries",
+    "Interest",
+    "Depreciation of physical capital"
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "banking77-train-9374",
+   "task_type": "label",
+   "question": "Hello, I wanted to get some more information about ATM Withdraw Fee. I have been withdrawing money for years and notice this charge on my account. I always thought it was no fee since its you guys ATM company that I am withdrawing. Can you please explain?",
+   "gold": "cash_withdrawal_charge"
+  },
+  {
+   "id": "banking77-train-2033",
+   "task_type": "label",
+   "question": "I topped-up my account, but I don't think it went through.",
+   "gold": "pending_top_up"
+  },
+  {
+   "id": "banking77-train-850",
+   "task_type": "label",
+   "question": "In my account I noticed my ATM withdrawal is still pending",
+   "gold": "pending_cash_withdrawal"
+  },
+  {
+   "id": "banking77-test-2074",
+   "task_type": "label",
+   "question": "How long does a transfer take from china?",
+   "gold": "transfer_timing"
+  },
+  {
+   "id": "banking77-train-8515",
+   "task_type": "label",
+   "question": "My top up didn't go through",
+   "gold": "top_up_failed"
+  },
+  {
+   "id": "mmlu-test-10276",
+   "task_type": "choice",
+   "question": "The Maya derived their writing and mathematics from the:",
+   "options": [
+    "Mesopotamians.",
+    "Chavin.",
+    "Chinese.",
+    "Olmec."
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "banking77-train-1087",
+   "task_type": "label",
+   "question": "How long does it take to receive my card?",
+   "gold": "card_delivery_estimate"
+  },
+  {
+   "id": "banking77-train-5505",
+   "task_type": "label",
+   "question": "I want to talk about an order that I placed a long time ago and have yet to receive. I demand a refund due to lack of delivery of the product!  I refuse to pay for something I never got.",
+   "gold": "request_refund"
+  },
+  {
+   "id": "mmlu-test-1599",
+   "task_type": "choice",
+   "question": "Relativity equations for time, length, and momentum hold true for",
+   "options": [
+    "everyday low speeds.",
+    "relativistic speeds.",
+    "Both of these.",
+    "Neither of these."
+   ],
+   "gold": "C"
+  },
+  {
+   "id": "mmlu-test-10297",
+   "task_type": "choice",
+   "question": "When did Mohenjo-daro develop into a complex urban center?",
+   "options": [
+    "during the Early Shang Dynasty, from 1,000 to 400 B.P.",
+    "during the Qin Dynasty, from 3,500 to 3,000 B.P.",
+    "during the Mature Harappan period, from 4,500 to 4,000 B.P.",
+    "during the Early Harappan period, from 8,500 to 6,000 B.P."
+   ],
+   "gold": "C"
+  },
+  {
+   "id": "mmlu-test-10254",
+   "task_type": "choice",
+   "question": "Which perspective asserts that the Earth and all living organisms are less than six thousand years old and have changed little, if at all, since then?",
+   "options": [
+    "uniformitarian",
+    "paleoanthropological",
+    "creationist",
+    "all of the above"
+   ],
+   "gold": "C"
+  },
+  {
+   "id": "banking77-train-8442",
+   "task_type": "label",
+   "question": "Please explain how disposable virtual card work.",
+   "gold": "get_disposable_virtual_card"
+  },
+  {
+   "id": "banking77-test-2315",
+   "task_type": "label",
+   "question": "I tried to transfer money and it did not work.",
+   "gold": "failed_transfer"
+  },
+  {
+   "id": "mmlu-test-4099",
+   "task_type": "choice",
+   "question": "Which of the following is most likely to produce stronger economic growth over time?",
+   "options": [
+    "More rapid consumption of natural resources.",
+    "Higher adult illiteracy rates.",
+    "A falling stock of capital goods.",
+    "Investment tax credits."
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "banking77-train-2022",
+   "task_type": "label",
+   "question": "When will my top-up be completed?",
+   "gold": "pending_top_up"
+  },
+  {
+   "id": "banking77-train-2978",
+   "task_type": "label",
+   "question": "How can I use my American Express to add money into my account?",
+   "gold": "supported_cards_and_currencies"
+  },
+  {
+   "id": "mmlu-test-2220",
+   "task_type": "choice",
+   "question": "At the beginning of a class period, half of the students in a class go to the library. Later in the period, half of the remaining students go to the computer lab. If there are 8 students remaining in the class, how many students were originally in the class?",
+   "options": [
+    "12 students",
+    "16 students",
+    "24 students",
+    "32 students"
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "mmlu-test-2828",
+   "task_type": "choice",
+   "question": "Those being hunted adopt a coloring scheme that allows them to blend in to the colors of the environment.",
+   "options": [
+    "Aposomatic coloration",
+    "Batesian mimicry",
+    "Deceptive markings",
+    "Cryptic coloration"
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "mmlu-test-3946",
+   "task_type": "choice",
+   "question": "Suppose that Tiger Woods buys a golf ball in England for $1 and the marginal propensity to consume in England is 0.75. What is the total increase in England's real GDP resulting from Mr. Woods' purchase?",
+   "options": [
+    "$1 ",
+    "$1.25 ",
+    "$1.75 ",
+    "$4 "
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "banking77-train-809",
+   "task_type": "label",
+   "question": "Hi, I tried to withdraw some money from an ATM and the machine was broken.  It says that the transaction is still in progress.  Can you double check to see what's happening? I don't want to be charged since I was not able to withdraw the money.",
+   "gold": "pending_cash_withdrawal"
+  },
+  {
+   "id": "mmlu-test-10316",
+   "task_type": "choice",
+   "question": "Levallois technology involved a shift in emphasis from:",
+   "options": [
+    "producing core tools to producing flakes.",
+    "producing pottery to producing clothing.",
+    "producing arrows to producing spear points.",
+    "larger, duller axes to smaller, sharper ones."
+   ],
+   "gold": "A"
+  },
+  {
+   "id": "mmlu-test-7970",
+   "task_type": "choice",
+   "question": "A kindergarten teacher notices that a new student who is from a foreign country is being excluded from play by a majority of the other students. Which of the following activities is best to help the class become aware of the common interests they share with the new student?",
+   "options": [
+    "Inviting a member of the new student's family to discuss the family's culture with the class",
+    "Creating a chart with the class that shows the many ways students in the class are similar",
+    "Using a globe to show the class which country the new student's family comes from",
+    "Asking the class to help the new student learn the classroom rules by having students role-play"
+   ],
+   "gold": "B"
+  },
+  {
+   "id": "banking77-test-720",
+   "task_type": "label",
+   "question": "Am I free to top-up as much as I want?",
+   "gold": "top_up_limits"
+  },
+  {
+   "id": "mmlu-test-2715",
+   "task_type": "choice",
+   "question": "Which statement about variation is true?",
+   "options": [
+    "All phenotypic variation is the result of genotypic variation.",
+    "All genetic variation produces phenotypic variation.",
+    "All nucleotide variability results in neutral variation.",
+    "All new alleles are the result of nucleotide variability."
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "mmlu-test-7257",
+   "task_type": "choice",
+   "question": "____________ is a form of digital marketing that describes the use of the social web and social media (e.g. social networks, online communities, blogs or wikis) or any online collaborative technology for marketing activities, be it sales, public relations, research, distribution, or customer service.",
+   "options": [
+    "Pay per click (PPC)",
+    "Digital asset optimization (DAO)",
+    "Social media marketing (SMM)",
+    "Search engine optimization (SEO)"
+   ],
+   "gold": "C"
+  },
+  {
+   "id": "mmlu-test-7143",
+   "task_type": "choice",
+   "question": " Fees paid by advertisers to online companies that refer qualified potential customers or provide consumer information where the consumer opts in to being contacted by a marketer. This is referred to as:",
+   "options": [
+    "Lead generation.",
+    "Search.",
+    "Rich media.",
+    "Social media marketing."
+   ],
+   "gold": "A"
+  },
+  {
+   "id": "banking77-train-7790",
+   "task_type": "label",
+   "question": "I need help finding the verification code on the top up card.",
+   "gold": "verify_top_up"
+  },
+  {
+   "id": "mmlu-test-7273",
+   "task_type": "choice",
+   "question": " With this pricing approach, the pricing process begins with the customer; not the cost of the product offering:",
+   "options": [
+    "Value-based pricing.",
+    "Cost-based pricing.",
+    "Customer-led pricing.",
+    "Sales pricing."
+   ],
+   "gold": "A"
+  },
+  {
+   "id": "banking77-test-945",
+   "task_type": "label",
+   "question": "why do i not have a virtual card",
+   "gold": "getting_virtual_card"
+  },
+  {
+   "id": "mmlu-test-1605",
+   "task_type": "choice",
+   "question": "General relativity predicts that",
+   "options": [
+    "light leaving the Sun is slowed by gravity.",
+    "light passing the Sun is deflected.",
+    "a clock on the Sun’s surface runs faster than on Earth.",
+    "All of these."
+   ],
+   "gold": "D"
+  },
+  {
+   "id": "banking77-test-2020",
+   "task_type": "label",
+   "question": "How can I view the source of my available funds?",
+   "gold": "verify_source_of_funds"
+  }
+ ]
+}
