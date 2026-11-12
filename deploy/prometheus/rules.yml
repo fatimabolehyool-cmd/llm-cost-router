@@ -1,0 +1,57 @@
+# Alert rules (architecture section H, ADR-16): evaluated by Prometheus, shown in Grafana.
+# Each rule names the action the operator takes; there is no Alertmanager in this deployment.
+groups:
+  - name: router
+    rules:
+      - alert: HighEscalationRate
+        expr: |
+          sum(rate(router_requests_total{reason=~"escalated_.*"}[15m]))
+            / clamp_min(sum(rate(router_requests_total{mode="balanced"}[15m])), 1e-9) > 0.40
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 40% of balanced requests escalate (E1/test split: about 27%)"
+          action: "Check junior health and the policy probability panel; run the release evaluation"
+      - alert: PolicyFallingBack
+        expr: increase(router_policy_fallbacks_total[10m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "The policy server is unavailable; rule-v0 is deciding"
+          action: "Check the policy-server container and `make registry`; cost may rise, safety does not change"
+      - alert: SpendNearCap
+        expr: router_spend_usd_total / router_spend_cap_usd > 0.8
+        labels: { severity: critical }
+        annotations:
+          summary: "Paid senior spend above 80% of the global cap"
+          action: "Raise SPEND_CAP_USD deliberately or expect budget_exceeded abstentions"
+      - alert: ProviderBreakerOpen
+        expr: max by (provider) (router_breaker_open) == 1
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "A circuit breaker is open ({{ $labels.provider }})"
+          action: "Check Ollama (juniors) or the Anthropic status page (senior)"
+      - alert: HighAbstentionRate
+        expr: |
+          sum(rate(router_requests_total{status="abstained"}[15m]))
+            / clamp_min(sum(rate(router_requests_total[15m])), 1e-9) > 0.20
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 20% of requests abstain"
+          action: "Look at the abstention reasons panel: budget, senior errors or sensitive traffic"
+      - alert: RoutingRecordsDropped
+        expr: increase(router_log_dropped_total[10m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Routing records were dropped (database slow or down)"
+          action: "Check PostgreSQL; requests still succeed but the audit trail has gaps"
+      - alert: AuditedDisagreementHigh
+        expr: |
+          sum(increase(router_audits_total{result="disagree"}[24h]))
+            / clamp_min(sum(increase(router_audits_total{result=~"agree|disagree"}[24h])), 1) > 0.25
+          and sum(increase(router_audits_total{result=~"agree|disagree"}[24h])) >= 20
+        labels: { severity: warning }
+        annotations:
+          summary: "The senior disagrees with more than 25% of audited accepted answers (NFR-16)"
+          action: "Freeze promotions, run the release evaluation, review audit_review_queue"
