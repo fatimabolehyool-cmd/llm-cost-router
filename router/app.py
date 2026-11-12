@@ -22,6 +22,7 @@ from .adapters import AnthropicSenior, CircuitBreaker, HttpSenior, OllamaJunior
 from .config import Settings
 from .egress import EgressGateway
 from .orchestrator import JuniorsUnavailable, Orchestrator, Overloaded
+from .policy import PolicyClient, PolicyMeta
 from .store import Store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -85,6 +86,21 @@ def build_senior(
     )
 
 
+def build_policy(s: Settings, client: httpx.AsyncClient) -> PolicyClient | None:
+    """The trained policy if one is configured and its metadata is valid; otherwise None, and
+    the router runs rule-v0. A missing or broken model never stops the router from starting."""
+    if not s.policy_url:
+        log.info("policy: none configured, rule-v0 decides")
+        return None
+    try:
+        meta = PolicyMeta.load(s.policy_meta_file)
+    except (OSError, ValueError, KeyError) as e:
+        log.warning("policy: cannot use %s (%s); rule-v0 decides", s.policy_meta_file, e)
+        return None
+    log.info("policy: %s (%s)", meta.model_version, meta.feature_version)
+    return PolicyClient(client, s.policy_url, meta, timeout_s=s.policy_timeout_s)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     s = Settings()
@@ -100,7 +116,7 @@ async def lifespan(app: FastAPI):
     senior = build_senior(s, client, cb())
     gateway = EgressGateway(senior, store, s.senior_price_in_per_mtok, s.senior_price_out_per_mtok)
     app.state.settings, app.state.store, app.state.gateway = s, store, gateway
-    app.state.orch = Orchestrator(s, j1, j2, gateway, store)
+    app.state.orch = Orchestrator(s, j1, j2, gateway, store, policy=build_policy(s, client))
     log.info("router ready versions=%s", app.state.orch.versions)
     yield
     await store.stop()
