@@ -74,12 +74,14 @@ exp2-down:
 	docker compose -f docker-compose.exp2.yml down
 
 # ---------------- policy lifecycle: train + gate through Airflow -> MLflow ----------------
+# Only Airflow (and its dependencies) is started here: a bare `up` would also recreate the router
+# with the mock settings and undo `make real-up`.
 LIFECYCLE = docker compose --profile orchestration
 FEATURES ?= v2
 
 train: env       ## train and gate the policy via the Airflow DAG (FEATURES=v1|v2); registers a challenger
 	$(DOCKER_UP)
-	$(LIFECYCLE) up -d --wait --build
+	$(LIFECYCLE) up -d --wait --build airflow
 	$(LIFECYCLE) exec -T -e GIT_COMMIT=$$(git rev-parse --short HEAD) airflow \
 		airflow dags test revalidate_policy $$(date +%Y-%m-%d) -c '{"features": "$(FEATURES)"}'
 	@cat results/revalidate_$$(date +%Y-%m-%d)_$(FEATURES).json
@@ -88,19 +90,42 @@ REGISTRY = $(LIFECYCLE) exec -T -w /opt/project airflow /opt/pipelines-venv/bin/
 
 registry:        ## which MLflow versions are champion / challenger / previous champion
 	$(DOCKER_UP)
-	$(LIFECYCLE) up -d --wait
+	$(LIFECYCLE) up -d --wait airflow
 	$(REGISTRY) show
 
 promote:         ## make promote VERSION=3 (refused unless it passed the gate); exports it for serving
 	@[ -n "$(VERSION)" ] || { echo "Usage: make promote VERSION=<registry version>"; exit 1; }
 	$(DOCKER_UP)
-	$(LIFECYCLE) up -d --wait
+	$(LIFECYCLE) up -d --wait airflow
 	$(REGISTRY) promote --version $(VERSION)
 
 rollback:        ## champion -> previous champion; exports it for serving
 	$(DOCKER_UP)
-	$(LIFECYCLE) up -d --wait
+	$(LIFECYCLE) up -d --wait airflow
 	$(REGISTRY) rollback
+
+shadow:          ## offline shadow report: challenger vs the serving champion on the release split
+	$(DOCKER_UP)
+	$(LIFECYCLE) up -d --wait airflow
+	$(LIFECYCLE) exec -T -w /opt/project airflow /opt/pipelines-venv/bin/python -m pipelines.shadow --data data/replay/pool_v1.jsonl
+
+reload:          ## hot reload only: MLServer loads the exported champion, then the router switches
+	$(DOCKER_UP)
+	$(LIFECYCLE) up -d --wait airflow
+	$(REGISTRY) activate
+
+lifecycle-demo: env  ## gate refusal -> train -> shadow -> promote -> rollback, live, no restarts (after real-up)
+	$(DOCKER_UP)
+	$(OLLAMA_UP)
+	$(PY) smoke/lifecycle_demo.py $(FEATURES)
+
+admin-key:       ## create or rotate the admin key in .env (not printed); apply with `make real-up`
+	@[ -f .env ] || { echo "no .env yet: run 'make env' first"; exit 1; }
+	@k=$$(openssl rand -hex 24); h=$$(printf '%s' "$$k" | shasum -a 256 | cut -d' ' -f1); \
+	grep -v '^ROUTER_ADMIN_KEY' .env > .env.tmp; \
+	printf 'ROUTER_ADMIN_KEY=%s\nROUTER_ADMIN_KEY_SHA256=%s\n' "$$k" "$$h" >> .env.tmp; \
+	mv .env.tmp .env; chmod 600 .env; \
+	echo "New admin key written to .env (not shown). Run 'make real-up': the old key stops working then."
 
 # ---------------- the real stack: Ollama juniors, Claude senior, MLServer policy ----------------
 REAL = docker compose -f docker-compose.yml -f infra/compose.real.yml --profile policy
@@ -141,7 +166,7 @@ restore-test:    ## timed backup + restore into a scratch database, verified by 
 
 retention:       ## apply the retention rules now (DRY=1 to preview); normally the daily Airflow DAG
 	$(DOCKER_UP)
-	$(LIFECYCLE) up -d --wait
+	$(LIFECYCLE) up -d --wait airflow
 	$(LIFECYCLE) exec -T -w /opt/project airflow /opt/pipelines-venv/bin/python -m pipelines.retention --text-days 30 --row-days 180 $(if $(DRY),--dry-run,)
 
 # ---------------- held-out evaluation on the test split (never used for training or the gate) ----------------
