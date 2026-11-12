@@ -4,6 +4,7 @@
 #   lifecycle       mlflow                               tracking + registry
 #   orchestration   airflow                              scheduling of the pipelines
 #   policy          policy-server                        MLServer serving the exported champion
+#   monitoring      prometheus, grafana                  metrics, alert rules, dashboard (deploy/)
 # infra/compose.real.yml switches the router from the mocks to Ollama, Claude and the policy.
 # Ollama is NOT here: it runs natively on macOS to use the Apple GPU (ADR-8); containers reach it
 # at host.docker.internal:11434.
@@ -75,6 +76,7 @@ services:
       SPEND_CAP_USD: ${SPEND_CAP_USD:-30}
       BREAKER_COOLDOWN_S: ${BREAKER_COOLDOWN_S:-60}
       POLICY_URL: ${POLICY_URL:-}
+      AUDIT_RATE: ${AUDIT_RATE:-0.05}
       POLICY_META_FILE: /policy-models/routing-policy/policy_meta.json
     volumes: ["./policy_models:/policy-models:ro"]   # exported by `make promote` / `make rollback`
     ports: ["127.0.0.1:8000:8000"]
@@ -154,6 +156,48 @@ services:
       start_period: 60s
     mem_limit: 3g
 
+  prometheus:
+    <<: *hardening
+    profiles: ["monitoring"]
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - promdata:/prometheus
+    ports: ["127.0.0.1:9090:9090"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+
+  grafana:
+    <<: *hardening
+    profiles: ["monitoring"]
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-local}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"          # read-only viewer for the local demo (127.0.0.1)
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_ANALYTICS_REPORTING_ENABLED: "false"    # no usage data leaves the machine
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/router.json
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      prometheus: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    mem_limit: 512m
+
 volumes:
   pgdata:
   mlartifacts:
+  promdata:

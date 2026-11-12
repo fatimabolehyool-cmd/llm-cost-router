@@ -68,7 +68,11 @@ def main() -> int:
     failures = 0
     with httpx.Client(timeout=60) as client:
         for name, body in REQUESTS:
-            r = client.post(f"{ROUTER}/v1/answer", json=body, headers={"X-API-Key": KEY})
+            try:
+                r = client.post(f"{ROUTER}/v1/answer", json=body, headers={"X-API-Key": KEY})
+            except httpx.ConnectError:
+                print(f"The router is not reachable at {ROUTER}. Start it with `make real-up`.")
+                return 2
             if r.status_code != 200:
                 failures += 1
                 print(f"{name:18s} HTTP {r.status_code}: {r.text[:120]}")
