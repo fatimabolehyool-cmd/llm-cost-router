@@ -1,6 +1,6 @@
-# S3 canary test (2026-10-24T08:21:07+00:00)
+# S3 canary test (2026-11-12T13:36:57+00:00)
 
-**Result: PASS** — 252 sensitive requests (7 junior behaviours x 3 senior behaviours x 3 modes x 2 task types x 2 ways of being sensitive), run time 363 s. Measured.
+**Result: PASS** — 252 sensitive requests (7 junior behaviours x 3 senior behaviours x 3 modes x 2 task types x 2 ways of being sensitive), run time 293 s. Measured.
 
 | Check | Observed | Required |
 |---|---|---|
@@ -9,6 +9,7 @@
 | Sensitive tokens found in router logs | 0 | 0 |
 | Sensitive requests misclassified or escalated | 0 | 0 |
 | Positive controls (before and after the matrix) reached the senior | yes | yes |
+| Audit positive control (accepted, non-sensitive) reached the senior via the audit path | yes | yes |
 | Sensitive requests that reached the local juniors (sanity) | 252/252 | > 0 |
 
 ## Outcomes of the sensitive requests
