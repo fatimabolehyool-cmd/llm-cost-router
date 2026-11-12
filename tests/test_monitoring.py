@@ -149,3 +149,33 @@ def test_collector_reports_audit_results_and_skips():
     assert got == {"agree": 9, "disagree": 2, "unreadable": 0}
     skipped = {s.labels["reason"]: s.value for s in fams["router_audits_skipped"].samples}
     assert skipped["budget"] == 1
+
+
+def test_every_orchestrator_reason_is_pre_initialized():
+    """A reason missing from metrics.py would make its first requests invisible to rate()."""
+    src = (ROOT / "router/orchestrator.py").read_text()
+    in_code = set(
+        re.findall(
+            r'"(juniors_agreed|policy_accepted|[a-z]+_disagreement|[a-z]+_low_confidence|'
+            r"cheapest_unverified|[a-z]+_unreadable|best_quality_mode|egress_blocked|"
+            r'budget_exceeded|senior_unavailable)"',
+            src,
+        )
+    )
+    known = set(metrics.ANSWERED_REASONS) | set(metrics.ABSTAINED_REASONS)
+    assert len(in_code) >= 10 and in_code <= known, in_code - known
+
+
+def test_initialize_series_creates_zero_valued_series():
+    metrics.initialize_series()
+    labels = {
+        "mode": "balanced",
+        "status": "answered",
+        "reason": "escalated_disagreement",
+        "data_class": "sensitive",
+    }
+    assert metrics.REGISTRY.get_sample_value("router_requests_total", labels) is not None
+    assert (
+        metrics.REGISTRY.get_sample_value("router_rejected_requests_total", {"code": "overloaded"})
+        is not None
+    )

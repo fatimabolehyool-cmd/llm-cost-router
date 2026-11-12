@@ -45,6 +45,56 @@ POLICY_P = Histogram(
     registry=REGISTRY,
 )
 SPEND_CAP = Gauge("router_spend_cap_usd", "Configured global spend cap", registry=REGISTRY)
+FEEDBACK = Counter(
+    "router_feedback",
+    "Caller feedback received (interface I2), by flag",
+    ["flag"],
+    registry=REGISTRY,
+)
+
+
+# Every outcome the orchestrator can produce (tests/test_monitoring.py checks this list against
+# router/orchestrator.py). Series are created at 0 on start-up, because Prometheus derives rates
+# from the change between scrapes: a series that only appears with its first request makes that
+# request invisible to rate() and increase(), which matters at demo-sized traffic.
+ANSWERED_REASONS = (
+    "juniors_agreed",
+    "policy_accepted",
+    "cheapest_unverified",
+    "escalated_disagreement",
+    "escalated_low_confidence",
+    "best_quality_mode",
+)
+ABSTAINED_REASONS = (
+    "sensitive_disagreement",
+    "sensitive_low_confidence",
+    "juniors_unreadable",
+    "egress_blocked",
+    "budget_exceeded",
+    "senior_unavailable",
+    "senior_unreadable",
+)
+MODES = ("cheapest", "balanced", "best_quality")
+DATA_CLASSES = ("non_sensitive", "sensitive")
+PATHS = ("juniors", "escalated", "best_quality", "abstained")
+REJECT_CODES = ("overloaded", "models_unavailable", "database_unavailable")
+FEEDBACK_FLAGS = ("wrong", "correct", "unsure")
+
+
+def initialize_series() -> None:
+    """Create every known label combination at 0 (idempotent)."""
+    for mode in MODES:
+        for data_class in DATA_CLASSES:
+            for reason in ANSWERED_REASONS:
+                REQUESTS.labels(mode, "answered", reason, data_class)
+            for reason in ABSTAINED_REASONS:
+                REQUESTS.labels(mode, "abstained", reason, data_class)
+    for path in PATHS:
+        LATENCY.labels(path)
+    for code in REJECT_CODES:
+        REJECTED.labels(code)
+    for flag in FEEDBACK_FLAGS:
+        FEEDBACK.labels(flag)
 
 
 def path_of(status: str, escalated: bool, reason: str) -> str:
