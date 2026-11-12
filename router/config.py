@@ -84,6 +84,9 @@ class Settings:
     )
     policy_timeout_s: float = field(default_factory=lambda: float(_env("POLICY_TIMEOUT_S", "0.06")))
 
+    # Load the local models at start-up so the first request is not slow (0 = off)
+    warmup: bool = field(default_factory=lambda: _env("WARMUP", "1") == "1")
+
     # Audit sampling (ADR-26): share of accepted, non-sensitive answers re-asked to the senior
     audit_rate: float = field(default_factory=lambda: float(_env("AUDIT_RATE", "0.05")))
 

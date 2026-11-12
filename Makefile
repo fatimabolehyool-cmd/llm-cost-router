@@ -143,6 +143,13 @@ monitoring-up:   ## Prometheus (localhost:9090) + Grafana dashboard (localhost:3
 	$(REAL) --profile monitoring up -d --wait prometheus grafana
 	@echo "Dashboard: http://localhost:3000  (alerts: http://localhost:9090/alerts)"
 
+demo:            ## open the demo page (after real-up); type your caller API key into it
+	@echo "Demo page: http://localhost:8000/demo"
+	@open http://localhost:8000/demo 2>/dev/null || true
+
+demo-samples:    ## rebuild the 40 labelled test-split questions the demo page replays
+	$(PY) -m pipelines.make_demo_samples
+
 real-down:       ## stop the real stack (data volumes are kept)
 	$(REAL) --profile monitoring down
 

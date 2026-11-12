@@ -1,5 +1,6 @@
 """Router API (interface I1): POST /v1/answer, GET /health, GET /ready; POST /v1/feedback (I2);
-admin (I7, separate admin key): GET /admin/policy, POST /admin/policy/reload.
+admin (I7, separate admin key): GET /admin/policy, POST /admin/policy/reload;
+demo page (FR-15): GET /demo, GET /demo/samples.
 
 Run: uvicorn router.app:app --host 0.0.0.0 --port 8000
 Logs never contain question text or model output: only request ID, outcome and timings.
@@ -11,6 +12,7 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -18,7 +20,7 @@ from typing import Literal
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field, model_validator
 
@@ -121,6 +123,20 @@ class FeedbackResponse(BaseModel):
     received: bool
 
 
+async def warm_up(*juniors) -> None:
+    """Load the local models into memory at start-up (the adapter asks Ollama to keep them for
+    30 minutes), so the first real request does not wait for a model load (~6 s measured).
+    Runs in the background; a failure is only logged and requests decide as usual."""
+    t0 = time.perf_counter()
+    results = await asyncio.gather(
+        *(j.ask("Reply with one letter.", "A", 1) for j in juniors), return_exceptions=True
+    )
+    ready = sum(not isinstance(r, BaseException) for r in results)
+    log.info(
+        "warm-up: %d/%d local models ready in %.1f s", ready, len(juniors), time.perf_counter() - t0
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     s = Settings()
@@ -145,8 +161,11 @@ async def lifespan(app: FastAPI):
     metrics.REGISTRY.register(collector)
     metrics.SPEND_CAP.set(s.spend_cap_usd)
     metrics.initialize_series()
+    warm = asyncio.create_task(warm_up(j1, j2)) if s.warmup else None
     log.info("router ready versions=%s", app.state.orch.versions)
     yield
+    if warm is not None:
+        warm.cancel()
     if audit is not None:
         await audit.drain()
     metrics.REGISTRY.unregister(collector)
@@ -323,3 +342,32 @@ async def admin_policy_reload(request: Request):
     metrics.POLICY_RELOADS.labels("ok").inc()
     log.info("policy reloaded: %s -> %s", previous, current)
     return {"reloaded": True, "previous": previous, **_policy_state(st.orch)}
+
+
+# ---------------------------------------------------------------- demo page (FR-15)
+
+STATIC = Path(__file__).parent / "static"
+# One self-contained page: inline script and style, and it may only call this router.
+DEMO_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "no-store",
+}
+
+
+@app.get("/demo", include_in_schema=False)
+async def demo_page() -> FileResponse:
+    """Static page that calls /v1/answer with the API key typed into it (never embedded)."""
+    return FileResponse(STATIC / "demo.html", media_type="text/html", headers=DEMO_HEADERS)
+
+
+@app.get("/demo/samples", include_in_schema=False)
+async def demo_samples() -> FileResponse:
+    """40 labelled test-split questions for the replay button (pipelines/make_demo_samples.py)."""
+    return FileResponse(
+        STATIC / "demo_samples.json", media_type="application/json", headers=DEMO_HEADERS
+    )
