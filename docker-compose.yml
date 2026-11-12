@@ -78,6 +78,7 @@ services:
       POLICY_URL: ${POLICY_URL:-}
       AUDIT_RATE: ${AUDIT_RATE:-0.05}
       POLICY_META_FILE: /policy-models/routing-policy/policy_meta.json
+      ROUTER_ADMIN_KEY_SHA256: ${ROUTER_ADMIN_KEY_SHA256:-}   # admin reload (I7); empty = disabled
     volumes: ["./policy_models:/policy-models:ro"]   # exported by `make promote` / `make rollback`
     ports: ["127.0.0.1:8000:8000"]
     extra_hosts: ["host.docker.internal:host-gateway"]
@@ -144,6 +145,10 @@ services:
       PIPELINES_PYTHON: /opt/pipelines-venv/bin/python
       MLFLOW_TRACKING_URI: http://mlflow:5000
       ROUTER_DATABASE_URL: postgresql://router:${ROUTER_DB_PASSWORD}@postgres:5432/router  # retention DAG
+      # Hot reload after promote/rollback (pipelines/serving.py, I7): the admin plane only
+      POLICY_SERVER_URL: http://policy-server:8080
+      ROUTER_URL: http://router:8000
+      ROUTER_ADMIN_KEY: ${ROUTER_ADMIN_KEY:-}
     volumes: [".:/opt/project"]
     ports: ["127.0.0.1:8081:8080"]
     depends_on:
