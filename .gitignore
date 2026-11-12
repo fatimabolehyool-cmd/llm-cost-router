@@ -16,3 +16,6 @@ htmlcov/
 
 # generated from the MLflow registry by `make promote` / `make rollback` / `make policy-export`
 policy_models/
+
+# database dumps from `make backup` / `make restore-test` (contain request data)
+backups/

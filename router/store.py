@@ -184,11 +184,16 @@ class Store:
             return False
 
     # ---- spend cap: one atomic statement, so two concurrent requests cannot both pass ----
+    # Amounts are rounded to the column type, NUMERIC(12, 6), inside the statement. asyncpg sends
+    # a Python float as its exact binary value (0.1 -> 0.1000000000000000055...), so without the
+    # cast the check compared a slightly larger number than the one stored, and a request that
+    # fitted exactly under the cap was refused. Found by the PostgreSQL integration test.
     async def reserve_spend(self, usd: float) -> bool:
         async with self.pool.acquire(timeout=1) as c:
             row = await c.fetchrow(
-                "UPDATE spend SET reserved_usd = reserved_usd + $1 "
-                "WHERE id = 1 AND spent_usd + reserved_usd + $1 <= cap_usd RETURNING id",
+                "UPDATE spend SET reserved_usd = reserved_usd + $1::numeric(12, 6) "
+                "WHERE id = 1 AND spent_usd + reserved_usd + $1::numeric(12, 6) <= cap_usd "
+                "RETURNING id",
                 usd,
             )
         return row is not None
@@ -196,8 +201,8 @@ class Store:
     async def settle_spend(self, reserved: float, actual: float) -> None:
         async with self.pool.acquire(timeout=1) as c:
             await c.execute(
-                "UPDATE spend SET reserved_usd = GREATEST(reserved_usd - $1, 0), "
-                "spent_usd = spent_usd + $2 WHERE id = 1",
+                "UPDATE spend SET reserved_usd = GREATEST(reserved_usd - $1::numeric(12, 6), 0), "
+                "spent_usd = spent_usd + $2::numeric(12, 6) WHERE id = 1",
                 reserved,
                 actual,
             )

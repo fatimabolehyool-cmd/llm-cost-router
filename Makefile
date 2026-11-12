@@ -8,7 +8,7 @@ MODELS_MID ?= gemma3:12b llama3.1:8b qwen2.5:7b phi4:14b
 DOCKER_UP = @docker info >/dev/null 2>&1 || { echo "Docker is not running. Start Docker Desktop and wait until it shows 'Engine running'."; exit 1; }
 OLLAMA_UP = @curl -sf http://localhost:11434/api/version >/dev/null || { echo "Ollama is not reachable on localhost:11434. Start it with 'ollama serve' or the Ollama app."; exit 1; }
 
-.PHONY: venv test lint format cov audit monitoring-up eval-seniors eval-report train registry promote rollback real-up real-ask real-down senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
+.PHONY: venv test lint format cov audit test-integration backup restore-test retention monitoring-up eval-seniors eval-report train registry promote rollback real-up real-ask real-down senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
 
 venv:            ## create the host virtual environment
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt -r requirements-dev.txt
@@ -30,6 +30,7 @@ audit:           ## secret scan + dependency audit, as in CI (needs `brew instal
 	gitleaks git --no-banner --redact --config .gitleaks.toml .
 	$(PY) -m pip_audit --no-deps --disable-pip -r infra/requirements-router.lock
 	$(PY) -m pip_audit --no-deps --disable-pip -r infra/requirements-mlops.lock
+	$(PY) -m pip_audit --no-deps --disable-pip -r requirements-dev.txt
 
 pull:            ## download the candidate junior models into Ollama
 	for m in $(MODELS); do ollama pull $$m; done
@@ -119,6 +120,29 @@ monitoring-up:   ## Prometheus (localhost:9090) + Grafana dashboard (localhost:3
 
 real-down:       ## stop the real stack (data volumes are kept)
 	$(REAL) --profile monitoring down
+
+# ---------------- data operations (feedback A5) and database integration tests ----------------
+test-integration: ## integration tests against a throwaway PostgreSQL 16 container (127.0.0.1:55432)
+	$(DOCKER_UP)
+	docker run -d --rm --name router-it-pg -e POSTGRES_PASSWORD=test -p 127.0.0.1:55432:5432 postgres:16-alpine >/dev/null
+	@until docker exec router-it-pg pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
+	TEST_DATABASE_URL=postgresql://postgres:test@127.0.0.1:55432/postgres $(PY) -m pytest -m integration -p no:cacheprovider; \
+		status=$$?; docker stop router-it-pg >/dev/null; exit $$status
+
+backup:          ## pg_dump of the router database to backups/ (git-ignored)
+	$(DOCKER_UP)
+	@mkdir -p backups
+	docker compose exec -T postgres pg_dump -U postgres -d router -Fc > backups/router-$$(date +%Y%m%d-%H%M).dump
+	@ls -lh backups | tail -1
+
+restore-test:    ## timed backup + restore into a scratch database, verified by row counts
+	$(DOCKER_UP)
+	$(PY) smoke/backup_restore.py
+
+retention:       ## apply the retention rules now (DRY=1 to preview); normally the daily Airflow DAG
+	$(DOCKER_UP)
+	$(LIFECYCLE) up -d --wait
+	$(LIFECYCLE) exec -T -w /opt/project airflow /opt/pipelines-venv/bin/python -m pipelines.retention --text-days 30 --row-days 180 $(if $(DRY),--dry-run,)
 
 # ---------------- held-out evaluation on the test split (never used for training or the gate) ----------------
 eval-seniors:    ## Opus 5.5 + Haiku 5.5 on the 689 test questions (~10 min, ~$2; resumable, stops at $3 each)

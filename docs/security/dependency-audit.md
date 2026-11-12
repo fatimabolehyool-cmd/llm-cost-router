@@ -17,6 +17,12 @@ than fixed.
 
 The upgraded images must be rebuilt and re-checked (S1–S3, E2) before release.
 
+## Later findings
+
+| Date | Lock file | Package | Pinned | Fixed in | Action |
+|---|---|---|---|---|---|
+| 12 Nov 2026 | `requirements-dev.txt` (test runner, not deployed) | pytest (PYSEC-2026-1845) | 8.4.2 | 9.0.3 | Upgraded; dev tools added to the CI audit, which previously checked only deployed lock files |
+
 ## Accepted: starlette 0.46.2 in the policy server image
 
 **Advisories ignored in CI:** PYSEC-2026-161, PYSEC-2026-248, PYSEC-2026-249, PYSEC-2026-1941,
