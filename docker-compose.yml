@@ -143,6 +143,7 @@ services:
       PROJECT_DIR: /opt/project
       PIPELINES_PYTHON: /opt/pipelines-venv/bin/python
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      ROUTER_DATABASE_URL: postgresql://router:${ROUTER_DB_PASSWORD}@postgres:5432/router  # retention DAG
     volumes: [".:/opt/project"]
     ports: ["127.0.0.1:8081:8080"]
     depends_on:
