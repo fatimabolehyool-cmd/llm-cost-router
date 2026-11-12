@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from common.normalizer import normalize
 
 from .adapters import ModelUnavailable, OllamaJunior
+from .audit import AuditSampler
 from .config import Settings
 from .egress import BudgetExceeded, EgressBlocked, EgressGateway
 from .policy import PolicyClient, PolicyUnavailable
@@ -57,6 +58,7 @@ class Outcome:
     cost_usd: float = 0.0
     latency_ms: int = 0
     versions: dict = field(default_factory=dict)
+    policy_p: float | None = None  # P(junior answer correct) when the trained policy decided
 
 
 class Orchestrator:
@@ -68,9 +70,10 @@ class Orchestrator:
         gateway: EgressGateway,
         store: Store,
         policy: PolicyClient | None = None,
+        audit: AuditSampler | None = None,
     ):
         self.s, self.j1, self.j2, self.gateway, self.store = s, j1, j2, gateway, store
-        self.policy = policy
+        self.policy, self.audit = policy, audit
         self.policy_fallbacks = 0  # exported as a metric
         self.prompts = load_prompts(s.prompts_file)
         self.cap = asyncio.Semaphore(s.junior_concurrency_cap)
@@ -96,6 +99,7 @@ class Orchestrator:
         agreed = None
         decided_by, policy_p = self.s.policy_version, None
         if mode == "best_quality" and data_class != SENSITIVE:
+            decided_by = "not_used"  # best quality always asks the senior
             out = await self._senior(
                 rid,
                 data_class,
@@ -157,7 +161,10 @@ class Orchestrator:
                 )
         out.latency_ms = int((time.perf_counter() - t0) * 1000)
         out.versions = {**self.versions, "policy": decided_by}
+        out.policy_p = policy_p
         self._log(out, question, task_type, mode, len(options), a1, a2, agreed, policy_p)
+        if self.audit is not None:  # after the row is queued; runs in the background
+            self.audit.maybe_schedule(out, task_type, system, user, max_tokens, labels)
         return out
 
     async def _policy_decision(self, task_type, n_options, a1, a2, usage, agreed):

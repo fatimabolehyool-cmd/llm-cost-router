@@ -15,10 +15,13 @@ from typing import Literal
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field, model_validator
 
+from . import metrics
 from .adapters import AnthropicSenior, CircuitBreaker, HttpSenior, OllamaJunior
+from .audit import AuditSampler
 from .config import Settings
 from .egress import EgressGateway
 from .orchestrator import JuniorsUnavailable, Orchestrator, Overloaded
@@ -62,6 +65,7 @@ class AnswerResponse(BaseModel):
     cost_usd: float
     latency_ms: int
     versions: dict
+    policy_p: float | None = None  # additive v1 field: the policy's confidence, when it decided
 
 
 def build_senior(
@@ -116,9 +120,18 @@ async def lifespan(app: FastAPI):
     senior = build_senior(s, client, cb())
     gateway = EgressGateway(senior, store, s.senior_price_in_per_mtok, s.senior_price_out_per_mtok)
     app.state.settings, app.state.store, app.state.gateway = s, store, gateway
-    app.state.orch = Orchestrator(s, j1, j2, gateway, store, policy=build_policy(s, client))
+    audit = AuditSampler(gateway, store, rate=s.audit_rate) if s.audit_rate > 0 else None
+    app.state.orch = Orchestrator(
+        s, j1, j2, gateway, store, policy=build_policy(s, client), audit=audit
+    )
+    collector = metrics.RouterCollector(app.state.orch, gateway, store)
+    metrics.REGISTRY.register(collector)
+    metrics.SPEND_CAP.set(s.spend_cap_usd)
     log.info("router ready versions=%s", app.state.orch.versions)
     yield
+    if audit is not None:
+        await audit.drain()
+    metrics.REGISTRY.unregister(collector)
     await store.stop()
     await client.aclose()
 
@@ -140,6 +153,12 @@ async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}  # process is up
+
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics() -> Response:
+    """Prometheus scrape endpoint (interface I10): counts and timings only, never content."""
+    return Response(generate_latest(metrics.REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/ready")
@@ -167,15 +186,19 @@ async def _http(_: Request, exc: HTTPException) -> JSONResponse:
 @app.post("/v1/answer", response_model=AnswerResponse, dependencies=[Depends(require_api_key)])
 async def answer(body: AnswerRequest, request: Request):
     if not await request.app.state.store.ping():
+        metrics.REJECTED.labels("database_unavailable").inc()
         return _error(503, "database_unavailable", "spend cap cannot be enforced; try later")
     try:
         out = await request.app.state.orch.answer(
             body.question, body.task_type, body.options, body.mode, body.sensitive
         )
     except Overloaded:
+        metrics.REJECTED.labels("overloaded").inc()
         return _error(503, "overloaded", "junior capacity full; retry later")
     except JuniorsUnavailable:
+        metrics.REJECTED.labels("models_unavailable").inc()
         return _error(503, "models_unavailable", "local models unavailable")
+    metrics.record_outcome(out, body.mode, out.policy_p)
     log.info(
         "request_id=%s status=%s reason=%s class=%s escalated=%s latency_ms=%s",
         out.request_id,
