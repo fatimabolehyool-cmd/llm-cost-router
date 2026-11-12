@@ -17,6 +17,13 @@ PROJECT = os.environ.get("PROJECT_DIR", "/opt/project")
 PYTHON = os.environ.get("PIPELINES_PYTHON", "/opt/pipelines-venv/bin/python")
 MLFLOW = os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 PIPELINE = f"cd {PROJECT} && {PYTHON} -m pipelines.revalidate"
+SHADOW = f"cd {PROJECT} && {PYTHON} -m pipelines.shadow"
+ENV = {
+    "MLFLOW_TRACKING_URI": MLFLOW,
+    "MLFLOW_DISABLE_TELEMETRY": "true",
+    "MLFLOW_DISABLE_AGENT_HINT": "1",
+    "DO_NOT_TRACK": "true",
+}
 
 with DAG(
     dag_id="revalidate_policy",
@@ -33,17 +40,23 @@ with DAG(
         "features": Param("v2", enum=["v1", "v2"]),
     },
 ) as dag:
-    BashOperator(
+    revalidate = BashOperator(
         task_id="revalidate",
         bash_command=(
             f"{PIPELINE} --data {PROJECT}/{{{{ params.replay_file }}}} "
             f"--features {{{{ params.features }}}} --window {{{{ ds }}}} --out {PROJECT}/results"
         ),
-        env={
-            "MLFLOW_TRACKING_URI": MLFLOW,
-            "MLFLOW_DISABLE_TELEMETRY": "true",
-            "MLFLOW_DISABLE_AGENT_HINT": "1",
-            "DO_NOT_TRACK": "true",
-        },
+        env=ENV,
         append_env=True,
     )
+    # Offline shadow: the new challenger against the champion serving now, request by request
+    # (the gate above only compares with rule-v0). The report is attached to the MLflow run.
+    shadow = BashOperator(
+        task_id="shadow_report",
+        bash_command=(
+            f"{SHADOW} --data {PROJECT}/{{{{ params.replay_file }}}} --out {PROJECT}/results"
+        ),
+        env=ENV,
+        append_env=True,
+    )
+    revalidate >> shadow
