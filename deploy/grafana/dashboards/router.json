@@ -2,7 +2,7 @@
   "uid": "cost-aware-router",
   "title": "Cost-aware LLM router",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "refresh": "10s",
   "time": {
@@ -16,8 +16,8 @@
   "panels": [
     {
       "id": 1,
-      "type": "timeseries",
-      "title": "Requests / min by outcome",
+      "type": "bargauge",
+      "title": "Requests by outcome (selected time range)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -35,17 +35,21 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (reason) (rate(router_requests_total[5m])) * 60",
+          "expr": "sum by (reason) (increase(router_requests_total[$__range])) > 0",
           "legendFormat": "{{reason}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqpm"
+          "unit": "none"
         },
         "overrides": []
       },
-      "options": {}
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true
+      }
     },
     {
       "id": 2,
@@ -68,7 +72,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(router_requests_total{reason=~\"escalated_.*\"}[15m])) / clamp_min(sum(rate(router_requests_total{mode=\"balanced\"}[15m])), 1e-9)"
+          "expr": "sum(increase(router_requests_total{mode=\"balanced\",reason=~\"escalated_.*\"}[$__range])) / clamp_min(sum(increase(router_requests_total{mode=\"balanced\"}[$__range])), 1)"
         }
       ],
       "fieldConfig": {
@@ -118,7 +122,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(router_requests_total{status=\"abstained\"}[15m])) / clamp_min(sum(rate(router_requests_total[15m])), 1e-9)"
+          "expr": "sum(increase(router_requests_total{status=\"abstained\"}[$__range])) / clamp_min(sum(increase(router_requests_total[$__range])), 1)"
         }
       ],
       "fieldConfig": {
@@ -191,7 +195,7 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Sensitive requests refused at the egress gateway",
+      "title": "Sensitive requests kept on the Mac / egress refusals",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -209,7 +213,17 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "router_egress_blocked_total"
+          "expr": "sum(increase(router_requests_total{data_class=\"sensitive\"}[$__range]))",
+          "legendFormat": "kept local"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "router_egress_blocked_total",
+          "legendFormat": "egress refused"
         }
       ],
       "fieldConfig": {
@@ -268,8 +282,8 @@
     },
     {
       "id": 7,
-      "type": "timeseries",
-      "title": "Latency p50 / p95 by path",
+      "type": "bargauge",
+      "title": "Latency p50 / p95 by path (selected time range)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -287,7 +301,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le, path) (rate(router_request_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.5, sum by (le, path) (increase(router_request_latency_seconds_bucket[$__range])))",
           "legendFormat": "p50 {{path}}"
         },
         {
@@ -296,7 +310,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, path) (rate(router_request_latency_seconds_bucket[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, path) (increase(router_request_latency_seconds_bucket[$__range])))",
           "legendFormat": "p95 {{path}}"
         }
       ],
@@ -306,7 +320,10 @@
         },
         "overrides": []
       },
-      "options": {}
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic"
+      }
     },
     {
       "id": 8,
@@ -329,7 +346,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.25, sum by (le) (rate(router_policy_probability_bucket[30m])))",
+          "expr": "histogram_quantile(0.25, sum by (le) (rate(router_policy_probability_bucket[$__rate_interval])))",
           "legendFormat": "P25 of P(correct)"
         },
         {
@@ -338,7 +355,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(router_policy_probability_bucket[30m])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(router_policy_probability_bucket[$__rate_interval])))",
           "legendFormat": "median P(correct)"
         }
       ],
@@ -400,7 +417,7 @@
     {
       "id": 10,
       "type": "stat",
-      "title": "Rejected before answering (503) / 15 min",
+      "title": "Rejected before answering (503)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -418,7 +435,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (code) (increase(router_rejected_requests_total[15m]))",
+          "expr": "sum by (code) (increase(router_rejected_requests_total[$__range]))",
           "legendFormat": "{{code}}"
         }
       ],

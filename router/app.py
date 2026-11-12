@@ -26,6 +26,7 @@ from .config import Settings
 from .egress import EgressGateway
 from .orchestrator import JuniorsUnavailable, Orchestrator, Overloaded
 from .policy import PolicyClient, PolicyMeta
+from .privacy import mask
 from .store import Store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -105,6 +106,18 @@ def build_policy(s: Settings, client: httpx.AsyncClient) -> PolicyClient | None:
     return PolicyClient(client, s.policy_url, meta, timeout_s=s.policy_timeout_s)
 
 
+class FeedbackRequest(BaseModel):
+    """Interface I2: a caller's verdict on one routing record."""
+
+    request_id: str = Field(pattern=r"^req_[0-9a-f]{12}$")
+    flag: Literal["wrong", "correct", "unsure"]
+    note: str | None = Field(default=None, max_length=500)
+
+
+class FeedbackResponse(BaseModel):
+    received: bool
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     s = Settings()
@@ -127,6 +140,7 @@ async def lifespan(app: FastAPI):
     collector = metrics.RouterCollector(app.state.orch, gateway, store)
     metrics.REGISTRY.register(collector)
     metrics.SPEND_CAP.set(s.spend_cap_usd)
+    metrics.initialize_series()
     log.info("router ready versions=%s", app.state.orch.versions)
     yield
     if audit is not None:
@@ -209,3 +223,22 @@ async def answer(body: AnswerRequest, request: Request):
         out.latency_ms,
     )
     return AnswerResponse(**out.__dict__)
+
+
+@app.post("/v1/feedback", response_model=FeedbackResponse, dependencies=[Depends(require_api_key)])
+async def feedback(body: FeedbackRequest, request: Request, x_api_key: str | None = Header(None)):
+    """Interface I2. Upsert per (request, caller): sending again replaces the earlier flag.
+    Errors: 400 invalid body, 401 bad key, 404 unknown request_id (or its record is not written
+    yet; retry after a second), 503 database unavailable. The note is masked before storage."""
+    key_id = hashlib.sha256((x_api_key or "").encode()).hexdigest()[:12]
+    note = mask(body.note) if body.note else None
+    try:
+        found = await request.app.state.store.upsert_feedback(
+            body.request_id, key_id, body.flag, note
+        )
+    except Exception:  # noqa: BLE001 - database down or slow
+        return _error(503, "database_unavailable", "feedback could not be stored; try later")
+    if not found:
+        return _error(404, "unknown_request", "no routing record with this request_id")
+    metrics.FEEDBACK.labels(body.flag).inc()
+    return FeedbackResponse(received=True)
