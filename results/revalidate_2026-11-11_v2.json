@@ -1,0 +1,33 @@
+{
+  "window": "2026-11-11",
+  "run_id": "e1d8cf42fafe4152b7f9e7fcf1a271eb",
+  "model": "routing-policy",
+  "version": "3",
+  "alias": "challenger",
+  "data_sha256": "d34d4d13f8b6c3f5d5e80b6bb6ab717666fe8d773241fb70b1d98de34421e267",
+  "feature_version": "policy-features-v2",
+  "threshold": 0.5665231233973835,
+  "champion_rule_v0": {
+    "coverage": 0.7256385998107853,
+    "accepted_accuracy": 0.8435462842242504,
+    "false_accept_rate": 0.15645371577574962,
+    "false_accept_upper95": 0.18386898867288456,
+    "n": 1057,
+    "n_accepted": 767
+  },
+  "challenger": {
+    "coverage": 0.7426679280983917,
+    "accepted_accuracy": 0.8509554140127389,
+    "false_accept_rate": 0.1490445859872611,
+    "false_accept_upper95": 0.17566506044485755,
+    "n": 1057,
+    "n_accepted": 785
+  },
+  "gate": {
+    "accuracy_not_worse": true,
+    "coverage_within_2pts": true,
+    "false_accept_upper95_le_25pct": true
+  },
+  "gate_passed": true,
+  "next_step": "eligible for promotion (human approval)"
+}

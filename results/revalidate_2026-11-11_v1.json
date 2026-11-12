@@ -1,0 +1,33 @@
+{
+  "window": "2026-11-11",
+  "run_id": "0fa0458171fd42bea5aa06683a43289c",
+  "model": "routing-policy",
+  "version": "2",
+  "alias": "challenger",
+  "data_sha256": "d34d4d13f8b6c3f5d5e80b6bb6ab717666fe8d773241fb70b1d98de34421e267",
+  "feature_version": "policy-features-v1",
+  "threshold": 0.7111547594292214,
+  "champion_rule_v0": {
+    "coverage": 0.7256385998107853,
+    "accepted_accuracy": 0.8435462842242504,
+    "false_accept_rate": 0.15645371577574962,
+    "false_accept_upper95": 0.18386898867288456,
+    "n": 1057,
+    "n_accepted": 767
+  },
+  "challenger": {
+    "coverage": 0.7246925260170294,
+    "accepted_accuracy": 0.8433420365535248,
+    "false_accept_rate": 0.1566579634464752,
+    "false_accept_upper95": 0.18410474200661717,
+    "n": 1057,
+    "n_accepted": 766
+  },
+  "gate": {
+    "accuracy_not_worse": false,
+    "coverage_within_2pts": true,
+    "false_accept_upper95_le_25pct": true
+  },
+  "gate_passed": false,
+  "next_step": "stay on champion"
+}
