@@ -3,6 +3,8 @@
 #   mocks           mock-models                          tests and feasibility checks
 #   lifecycle       mlflow                               tracking + registry
 #   orchestration   airflow                              scheduling of the pipelines
+#   policy          policy-server                        MLServer serving the exported champion
+# infra/compose.real.yml switches the router from the mocks to Ollama, Claude and the policy.
 # Ollama is NOT here: it runs natively on macOS to use the Apple GPU (ADR-8); containers reach it
 # at host.docker.internal:11434.
 # Every published port is bound to 127.0.0.1 only. Postgres is not published at all.
@@ -72,13 +74,33 @@ services:
       SENIOR_PRICE_OUT: ${SENIOR_PRICE_OUT:-50}
       SPEND_CAP_USD: ${SPEND_CAP_USD:-30}
       BREAKER_COOLDOWN_S: ${BREAKER_COOLDOWN_S:-60}
+      POLICY_URL: ${POLICY_URL:-}
+      POLICY_META_FILE: /policy-models/routing-policy/policy_meta.json
+    volumes: ["./policy_models:/policy-models:ro"]   # exported by `make promote` / `make rollback`
     ports: ["127.0.0.1:8000:8000"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     depends_on:
       postgres: { condition: service_healthy }
       mock-models: { condition: service_healthy, required: false }
+      policy-server: { condition: service_healthy, required: false }
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/ready', timeout=2).status==200 else 1)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    mem_limit: 512m
+
+  policy-server:
+    <<: *hardening
+    profiles: ["policy"]
+    build: { context: ., dockerfile: exp2_policy_serving/Dockerfile }   # same image E2 measured
+    image: llm-router-policy:dev
+    command: ["mlserver", "start", "/models"]
+    volumes: ["./policy_models:/models:ro"]
+    ports: ["127.0.0.1:8090:8080"]     # V2 inference protocol; host port for debugging and E2
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/v2/health/ready', timeout=2).status==200 else 1)"]
       interval: 3s
       timeout: 3s
       retries: 20

@@ -77,7 +77,42 @@ LOG_COLUMNS = [
     "senior_model",
     "cost_usd",
     "latency_ms",
+    "policy_p",
 ]
+
+# Numbered, idempotent schema migrations (architecture section E). Each runs once, inside a
+# transaction, and is recorded in schema_migrations; an advisory lock keeps two router
+# processes from migrating at the same time. Never edit a migration that has shipped: add one.
+MIGRATIONS: list[tuple[str, str]] = [
+    ("001_initial_schema", SCHEMA),
+    (
+        "002_policy_probability",
+        "ALTER TABLE request_log ADD COLUMN IF NOT EXISTS policy_p REAL;  -- P(correct), if used",
+    ),
+]
+MIGRATION_LOCK = 727_001  # arbitrary constant for pg_advisory_lock
+
+
+async def migrate(conn: asyncpg.Connection) -> list[str]:
+    """Apply pending migrations; return the versions applied now."""
+    await conn.execute("SELECT pg_advisory_lock($1)", MIGRATION_LOCK)
+    try:
+        await conn.execute(
+            "CREATE TABLE IF NOT EXISTS schema_migrations ("
+            "version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+        )
+        done = {r["version"] for r in await conn.fetch("SELECT version FROM schema_migrations")}
+        applied = []
+        for version, sql in MIGRATIONS:
+            if version in done:
+                continue
+            async with conn.transaction():
+                await conn.execute(sql)
+                await conn.execute("INSERT INTO schema_migrations (version) VALUES ($1)", version)
+            applied.append(version)
+        return applied
+    finally:
+        await conn.execute("SELECT pg_advisory_unlock($1)", MIGRATION_LOCK)
 
 
 class Store:
@@ -91,9 +126,14 @@ class Store:
     async def start(self) -> None:
         self.pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=5, command_timeout=2)
         async with self.pool.acquire() as c:
-            await c.execute(SCHEMA)
+            applied = await migrate(c)
+            if applied:
+                log.info("schema migrations applied: %s", ",".join(applied))
+            # The configured cap always wins: a changed SPEND_CAP_USD must take effect on restart
+            # (it used to be ignored once the row existed). Spent and reserved are untouched.
             await c.execute(
-                "INSERT INTO spend (id, cap_usd) VALUES (1, $1) ON CONFLICT (id) DO NOTHING",
+                "INSERT INTO spend (id, cap_usd) VALUES (1, $1) "
+                "ON CONFLICT (id) DO UPDATE SET cap_usd = EXCLUDED.cap_usd",
                 self.spend_cap_usd,
             )
         self._writer = asyncio.create_task(self._write_loop())

@@ -4,7 +4,7 @@ MODELS ?= gemma3:4b qwen3:4b phi4-mini llama3.2:3b
 # qwen3 was dropped: it reasons out loud and never reached an answer within the token limit.
 MODELS_MID ?= gemma3:12b llama3.1:8b qwen2.5:7b phi4:14b
 
-.PHONY: venv test lint format cov audit train senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
+.PHONY: venv test lint format cov audit train registry promote rollback real-up real-ask real-down senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
 
 venv:            ## create the host virtual environment
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt -r requirements-dev.txt
@@ -77,6 +77,29 @@ train: env       ## train and gate the policy via the Airflow DAG (FEATURES=v1|v
 	$(LIFECYCLE) exec -T -e GIT_COMMIT=$$(git rev-parse --short HEAD) airflow \
 		airflow dags test revalidate_policy $$(date +%Y-%m-%d) -c '{"features": "$(FEATURES)"}'
 	@cat results/revalidate_$$(date +%Y-%m-%d)_$(FEATURES).json
+
+REGISTRY = $(LIFECYCLE) exec -T -w /opt/project airflow /opt/pipelines-venv/bin/python -m pipelines.registry
+
+registry:        ## which MLflow versions are champion / challenger / previous champion
+	$(REGISTRY) show
+
+promote:         ## make promote VERSION=3 (refused unless it passed the gate); exports it for serving
+	$(REGISTRY) promote --version $(VERSION)
+
+rollback:        ## champion -> previous champion; exports it for serving
+	$(REGISTRY) rollback
+
+# ---------------- the real stack: Ollama juniors, Claude senior, MLServer policy ----------------
+REAL = docker compose -f docker-compose.yml -f infra/compose.real.yml --profile policy
+
+real-up: env     ## start/restart router + policy server with the exported champion (Ollama must run)
+	$(REAL) up -d --wait --build --force-recreate postgres policy-server router
+
+real-ask:        ## a few real requests through the stack (< $0.01); prints the routing records
+	$(PY) smoke/ask.py
+
+real-down:       ## stop the real stack (data volumes are kept)
+	$(REAL) down
 
 # ---------------- senior (Claude Opus 5.5) and Experiment 4 (architecture feedback A4) ----------------
 senior-smoke:    ## one real call to Claude Opus 5.5 (< $0.01); RECORD=1 saves a scrubbed test fixture

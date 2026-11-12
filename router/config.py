@@ -71,6 +71,15 @@ class Settings:
     )
     spend_cap_usd: float = field(default_factory=lambda: float(_env("SPEND_CAP_USD", "30")))
 
+    # Routing policy served by MLServer (interface I5). Empty URL = rule-v0 only.
+    policy_url: str = field(default_factory=lambda: _env("POLICY_URL", ""))
+    policy_meta_file: str = field(
+        default_factory=lambda: _env(
+            "POLICY_META_FILE", "/policy-models/routing-policy/policy_meta.json"
+        )
+    )
+    policy_timeout_s: float = field(default_factory=lambda: float(_env("POLICY_TIMEOUT_S", "0.06")))
+
     # Versions (ADR-17)
     api_version: str = "v1"
     policy_version: str = field(default_factory=lambda: _env("POLICY_VERSION", "rule-v0"))
