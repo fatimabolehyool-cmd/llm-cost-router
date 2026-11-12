@@ -254,3 +254,53 @@ def test_both_unreadable_skips_the_policy(tmp_path):
     orch, senior, _, policy = make(tmp_path, "no idea", "maybe", p=0.99)
     o = answer(orch)
     assert policy.calls == 0 and o.escalated and senior.calls == 1
+
+
+# ---------------------------------------------------------------- hot reload (interface I7)
+
+
+def test_set_policy_changes_the_version_for_the_next_request(tmp_path):
+    orch, _, _, _ = make(tmp_path, "A", "C", p=0.9)
+    newer = FakePolicy(PolicyMeta.load(write_meta(tmp_path, model_version="run-new")), p=0.9)
+    assert orch.set_policy(newer) == "run-new"
+    assert answer(orch).versions["policy"] == "run-new" and newer.calls == 1
+    assert orch.set_policy(None) == "rule-v0"
+    assert answer(orch).versions["policy"] == "rule-v0"
+
+
+def test_a_request_in_flight_finishes_with_the_policy_it_started_with(tmp_path):
+    """Swapping the policy while a request awaits the policy server must not mix two models:
+    the probability, threshold and version all come from the policy read at the start."""
+
+    gate: dict[str, asyncio.Event] = {}
+
+    class SlowPolicy(FakePolicy):
+        async def p_correct(self, x):
+            gate["started"].set()
+            await gate["release"].wait()
+            return await super().p_correct(x)
+
+    old = SlowPolicy(PolicyMeta.load(write_meta(tmp_path)), p=0.65)  # threshold 0.6: accept
+    strict = FakePolicy(
+        PolicyMeta.load(
+            write_meta(tmp_path, model_version="run-strict", thresholds={"balanced": 0.99})
+        ),
+        p=0.65,
+    )
+    orch, senior, _, _ = make(tmp_path, "A", "C")
+    orch.set_policy(old)
+
+    async def scenario():
+        gate["started"], gate["release"] = asyncio.Event(), asyncio.Event()
+        task = asyncio.create_task(
+            orch.answer("Which planet is largest?", "choice", OPTS, "balanced", False)
+        )
+        await gate["started"].wait()
+        orch.set_policy(strict)  # admin reload lands mid-request
+        gate["release"].set()
+        return await task
+
+    out = asyncio.run(scenario())
+    assert out.versions["policy"] == "run-abc12345" and out.reason == "policy_accepted"
+    assert senior.calls == 0 and strict.calls == 0
+    assert answer(orch).versions["policy"] == "run-strict"

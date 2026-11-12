@@ -118,9 +118,10 @@ class Orchestrator:
             pick = a1 if a1 is not None else a2
             pick_model = self.s.junior1_model if a1 is not None else self.s.junior2_model
             accept, decided_by = agreed, self.s.policy_version
-            if mode == "balanced" and self.policy is not None and pick is not None:
+            policy = self.policy  # read once: an admin reload may swap it while we await
+            if mode == "balanced" and policy is not None and pick is not None:
                 accept, decided_by, policy_p = await self._policy_decision(
-                    task_type, len(options), a1, a2, usage, agreed
+                    policy, task_type, len(options), a1, a2, usage, agreed
                 )
             by_model = decided_by not in (self.s.policy_version, "rule-v0-fallback")
             if accept and pick is not None:
@@ -167,9 +168,17 @@ class Orchestrator:
             self.audit.maybe_schedule(out, task_type, system, user, max_tokens, labels)
         return out
 
-    async def _policy_decision(self, task_type, n_options, a1, a2, usage, agreed):
+    def set_policy(self, policy: PolicyClient | None) -> str:
+        """Swap the routing policy without a restart (admin reload, interface I7). A request
+        already past the read in answer() finishes with the policy it started with, so features,
+        threshold and version always come from one model. Returns the version now serving."""
+        self.policy = policy
+        self.versions["policy"] = policy.meta.model_version if policy else self.s.policy_version
+        return self.versions["policy"]
+
+    async def _policy_decision(self, policy, task_type, n_options, a1, a2, usage, agreed):
         """Return (accept, decided_by, probability). Falls back to the agreement rule."""
-        x = self.policy.meta.vector(
+        x = policy.meta.vector(
             task_type,
             n_options,
             a1,
@@ -179,12 +188,12 @@ class Orchestrator:
             usage["j2_tokens"],
         )
         try:
-            p = await self.policy.p_correct(x)
+            p = await policy.p_correct(x)
         except PolicyUnavailable as e:
             self.policy_fallbacks += 1
             log.warning("policy unavailable (%s); rule-v0 decides", e)
             return agreed, "rule-v0-fallback", None
-        return p >= self.policy.meta.threshold_balanced, self.policy.meta.model_version, p
+        return p >= policy.meta.threshold_balanced, policy.meta.model_version, p
 
     async def _juniors(self, system, user, max_tokens, task_type, labels):
         if self.cap.locked():

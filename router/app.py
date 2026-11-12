@@ -1,4 +1,5 @@
-"""Router API (interface I1): POST /v1/answer, GET /health, GET /ready.
+"""Router API (interface I1): POST /v1/answer, GET /health, GET /ready; POST /v1/feedback (I2);
+admin (I7, separate admin key): GET /admin/policy, POST /admin/policy/reload.
 
 Run: uvicorn router.app:app --host 0.0.0.0 --port 8000
 Logs never contain question text or model output: only request ID, outcome and timings.
@@ -6,10 +7,12 @@ Logs never contain question text or model output: only request ID, outcome and t
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal
 
 import httpx
@@ -25,7 +28,7 @@ from .audit import AuditSampler
 from .config import Settings
 from .egress import EgressGateway
 from .orchestrator import JuniorsUnavailable, Orchestrator, Overloaded
-from .policy import PolicyClient, PolicyMeta
+from .policy import PolicyClient, PolicyMeta, PolicyUnavailable
 from .privacy import mask
 from .store import Store
 
@@ -133,6 +136,7 @@ async def lifespan(app: FastAPI):
     senior = build_senior(s, client, cb())
     gateway = EgressGateway(senior, store, s.senior_price_in_per_mtok, s.senior_price_out_per_mtok)
     app.state.settings, app.state.store, app.state.gateway = s, store, gateway
+    app.state.http, app.state.reload_lock = client, asyncio.Lock()
     audit = AuditSampler(gateway, store, rate=s.audit_rate) if s.audit_rate > 0 else None
     app.state.orch = Orchestrator(
         s, j1, j2, gateway, store, policy=build_policy(s, client), audit=audit
@@ -188,13 +192,19 @@ async def require_api_key(request: Request, x_api_key: str | None = Header(defau
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
+ADMIN_MESSAGES = {
+    401: "missing or invalid admin key",
+    403: "admin endpoints are disabled: set ROUTER_ADMIN_KEY_SHA256 (make admin-key)",
+}
+
+
 @app.exception_handler(HTTPException)
-async def _http(_: Request, exc: HTTPException) -> JSONResponse:
-    return _error(
-        exc.status_code,
-        str(exc.detail),
-        "missing or invalid API key" if exc.status_code == 401 else "",
-    )
+async def _http(request: Request, exc: HTTPException) -> JSONResponse:
+    if request.url.path.startswith("/admin/"):
+        message = ADMIN_MESSAGES.get(exc.status_code, "")
+    else:
+        message = "missing or invalid API key" if exc.status_code == 401 else ""
+    return _error(exc.status_code, str(exc.detail), message)
 
 
 @app.post("/v1/answer", response_model=AnswerResponse, dependencies=[Depends(require_api_key)])
@@ -242,3 +252,74 @@ async def feedback(body: FeedbackRequest, request: Request, x_api_key: str | Non
         return _error(404, "unknown_request", "no routing record with this request_id")
     metrics.FEEDBACK.labels(body.flag).inc()
     return FeedbackResponse(received=True)
+
+
+# ---------------------------------------------------------------- admin (interface I7)
+
+
+async def require_admin_key(
+    request: Request, x_admin_key: str | None = Header(default=None)
+) -> None:
+    """Admin calls need X-Admin-Key; the caller API key is never accepted here."""
+    expected = request.app.state.settings.admin_key_sha256
+    if not expected:
+        raise HTTPException(status_code=403, detail="admin_disabled")
+    given = hashlib.sha256((x_admin_key or "").encode()).hexdigest()
+    if not hmac.compare_digest(given, expected):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
+def _policy_state(orch) -> dict:
+    p = orch.policy
+    return {
+        "policy": orch.versions["policy"],
+        "feature_version": p.meta.feature_version if p else None,
+        "threshold_balanced": p.meta.threshold_balanced if p else None,
+    }
+
+
+@app.get("/admin/policy", dependencies=[Depends(require_admin_key)])
+async def admin_policy(request: Request) -> dict:
+    """Which routing policy is serving now."""
+    return _policy_state(request.app.state.orch)
+
+
+PROBE_TIMEOUT_S = 2.0  # the first inference after a model load can be slower than the 60 ms
+
+
+@app.post("/admin/policy/reload", dependencies=[Depends(require_admin_key)])
+async def admin_policy_reload(request: Request):
+    """Switch to the exported champion without restarting (interface I7).
+
+    Called by `pipelines.registry promote|rollback` after MLServer has loaded the new model.
+    The new metadata is read and a probe request must come back from the policy server with
+    the same model_version, so the router never builds features for a model the server is not
+    running. On any failure the current policy keeps serving: 409 reload_failed. No exported
+    champion means rule-v0 decides. Reloads are serialised; requests are never paused.
+    """
+    st = request.app.state
+    s = st.settings
+    if not s.policy_url:
+        return _error(409, "policy_not_configured", "POLICY_URL is not set; rule-v0 decides")
+    async with st.reload_lock:
+        previous = st.orch.versions["policy"]
+        if not Path(s.policy_meta_file).exists():
+            current = st.orch.set_policy(None)
+            metrics.POLICY_RELOADS.labels("ok").inc()
+            log.warning("policy reload: no champion exported; %s -> %s", previous, current)
+            return {"reloaded": True, "previous": previous, **_policy_state(st.orch)}
+        try:
+            meta = PolicyMeta.load(s.policy_meta_file)
+            probe = PolicyClient(st.http, s.policy_url, meta, timeout_s=PROBE_TIMEOUT_S)
+            await probe.p_correct(meta.vector("choice", 4, "A", "A", 100, 2, 2))
+        except (OSError, ValueError, KeyError, PolicyUnavailable) as e:
+            reason = str(e) or type(e).__name__
+            metrics.POLICY_RELOADS.labels("failed").inc()
+            log.warning("policy reload refused (%s); %s keeps serving", reason, previous)
+            return _error(409, "reload_failed", f"{reason}; {previous} keeps serving")
+        current = st.orch.set_policy(
+            PolicyClient(st.http, s.policy_url, meta, timeout_s=s.policy_timeout_s)
+        )
+    metrics.POLICY_RELOADS.labels("ok").inc()
+    log.info("policy reloaded: %s -> %s", previous, current)
+    return {"reloaded": True, "previous": previous, **_policy_state(st.orch)}

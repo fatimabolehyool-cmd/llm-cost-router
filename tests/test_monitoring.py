@@ -65,6 +65,7 @@ def test_collector_reads_state_the_core_already_keeps():
     open_breaker.record(False)
     orch = SimpleNamespace(
         policy_fallbacks=3,
+        versions={"policy": "run-abc12345"},
         j1=SimpleNamespace(breaker=open_breaker),
         j2=SimpleNamespace(breaker=CircuitBreaker()),
     )
@@ -78,6 +79,8 @@ def test_collector_reads_state_the_core_already_keeps():
     assert families["router_log_dropped"].samples[0].value == 2
     state = {s.labels["provider"]: s.value for s in families["router_breaker_open"].samples}
     assert state == {"junior1": 1.0, "junior2": 0.0, "senior": 0.0}
+    info = families["router_policy_info"].samples
+    assert [(x.labels["version"], x.value) for x in info] == [("run-abc12345", 1.0)]
 
 
 def test_metrics_endpoint_serves_prometheus_text():
@@ -92,6 +95,7 @@ def fake_collector() -> metrics.RouterCollector:
     audit = SimpleNamespace(results=Counter(), skipped=Counter())
     orch = SimpleNamespace(
         policy_fallbacks=0,
+        versions={"policy": "rule-v0"},
         audit=audit,
         j1=SimpleNamespace(breaker=CircuitBreaker()),
         j2=SimpleNamespace(breaker=CircuitBreaker()),
