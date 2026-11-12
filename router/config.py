@@ -7,6 +7,7 @@ written to every log row (ADR-17), so any answer can be traced to the exact conf
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 
 
@@ -24,6 +25,9 @@ class Settings:
     hash_key: str = field(
         default_factory=lambda: _env("ROUTER_HASH_KEY")
     )  # HMAC key for prompt hashes
+    # Admin key (interface I7: policy reload). Only its SHA-256 is stored; empty = admin disabled.
+    # Created and rotated with `make admin-key`; must differ from the caller API key.
+    admin_key_sha256: str = field(default_factory=lambda: _env("ROUTER_ADMIN_KEY_SHA256", ""))
 
     # Juniors: Ollama-compatible endpoints (Ollama on the Mac host, or the mock server in tests)
     junior1_url: str = field(
@@ -91,7 +95,12 @@ class Settings:
     )
 
     def __post_init__(self) -> None:
-        """Fail at start-up, not on the first paid call, when the senior is misconfigured."""
+        """Fail at start-up, not on the first paid call, when something is misconfigured."""
+        if self.admin_key_sha256:
+            if not re.fullmatch(r"[0-9a-f]{64}", self.admin_key_sha256):
+                raise RuntimeError("ROUTER_ADMIN_KEY_SHA256 must be a SHA-256 hex digest")
+            if self.admin_key_sha256 == self.api_key_sha256:
+                raise RuntimeError("the admin key must differ from the caller API key")
         if self.senior_provider not in ("mock", "anthropic"):
             raise RuntimeError("SENIOR_PROVIDER must be 'mock' or 'anthropic'")
         if self.senior_provider == "anthropic":

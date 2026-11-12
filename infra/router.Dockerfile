@@ -12,7 +12,10 @@ COPY router/ router/
 COPY prompts/ prompts/
 COPY mock_models/ mock_models/
 
-RUN useradd --create-home --uid 1000 app && mkdir -p /records && chown app /records
+# Readable by the unprivileged user whatever the file modes on the build host were: a source
+# file saved with mode 600 once made the router fail at start-up with PermissionError.
+RUN chmod -R a+rX /app \
+ && useradd --create-home --uid 1000 app && mkdir -p /records && chown app /records
 USER app
 
 EXPOSE 8000

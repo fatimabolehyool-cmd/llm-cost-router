@@ -45,6 +45,12 @@ POLICY_P = Histogram(
     registry=REGISTRY,
 )
 SPEND_CAP = Gauge("router_spend_cap_usd", "Configured global spend cap", registry=REGISTRY)
+POLICY_RELOADS = Counter(
+    "router_policy_reloads",
+    "Admin policy reloads (interface I7) by result; a failed reload keeps the old policy",
+    ["result"],
+    registry=REGISTRY,
+)
 FEEDBACK = Counter(
     "router_feedback",
     "Caller feedback received (interface I2), by flag",
@@ -79,6 +85,7 @@ DATA_CLASSES = ("non_sensitive", "sensitive")
 PATHS = ("juniors", "escalated", "best_quality", "abstained")
 REJECT_CODES = ("overloaded", "models_unavailable", "database_unavailable")
 FEEDBACK_FLAGS = ("wrong", "correct", "unsure")
+RELOAD_RESULTS = ("ok", "failed")
 
 
 def initialize_series() -> None:
@@ -95,6 +102,8 @@ def initialize_series() -> None:
         REJECTED.labels(code)
     for flag in FEEDBACK_FLAGS:
         FEEDBACK.labels(flag)
+    for result in RELOAD_RESULTS:
+        POLICY_RELOADS.labels(result)
 
 
 def path_of(status: str, escalated: bool, reason: str) -> str:
@@ -128,6 +137,13 @@ class RouterCollector:
         return []  # unchecked collector: families are produced only in collect()
 
     def collect(self) -> Iterable[Metric]:
+        info = GaugeMetricFamily(
+            "router_policy_info",
+            "The routing policy version serving now (rule-v0 when no trained model is loaded)",
+            labels=["version"],
+        )
+        info.add_metric([self.orch.versions["policy"]], 1.0)
+        yield info
         yield CounterMetricFamily(
             "router_policy_fallbacks",
             "Balanced-mode decisions made by rule-v0 because the policy was unavailable",
