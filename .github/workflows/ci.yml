@@ -57,6 +57,33 @@ jobs:
           name: coverage-report-py${{ matrix.python }}
           path: coverage.xml
 
+  integration:
+    name: Integration tests (PostgreSQL 16)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine          # same major version as the deployment
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s
+          --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:test@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            infra/requirements-router.lock
+            requirements-dev.txt
+      - run: pip install -r infra/requirements-router.lock -r requirements-dev.txt
+      - name: Run integration tests (store, migrations, spend cap, audit, feedback, retention)
+        run: pytest -m integration --cov --cov-report=term-missing --cov-fail-under=0
+
   security:
     name: Secret scan and dependency audit
     runs-on: ubuntu-24.04
@@ -76,6 +103,8 @@ jobs:
         run: pip-audit --no-deps --disable-pip -r infra/requirements-router.lock
       - name: Audit MLflow / Airflow pipeline dependencies
         run: pip-audit --no-deps --disable-pip -r infra/requirements-mlops.lock
+      - name: Audit development and CI tools
+        run: pip-audit --no-deps --disable-pip -r requirements-dev.txt
       - name: Audit policy-server dependencies (accepted risks in docs/security/dependency-audit.md)
         run: >
           pip-audit --no-deps --disable-pip -r exp2_policy_serving/requirements-serving.lock

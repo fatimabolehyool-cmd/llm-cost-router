@@ -1,7 +1,8 @@
 # Development and CI tools, pinned. Install with:
 #   pip install -r infra/requirements-router.lock -r requirements-dev.txt
-pytest==8.4.2
+pytest==9.0.3            # 8.4.2 had PYSEC-2026-1845 (found by pip-audit, 12 Nov)
 pytest-cov==7.1.0
 coverage==7.17.2
 ruff==0.17.4
 pip-audit==2.10.1
+psycopg[binary]==3.3.6   # integration tests of the retention job (same version as the pipelines image)
