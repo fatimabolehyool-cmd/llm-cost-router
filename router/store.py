@@ -102,6 +102,20 @@ MIGRATIONS: list[tuple[str, str]] = [
             FROM request_log WHERE audit_agrees = false;
         """,
     ),
+    (
+        "004_feedback",
+        """
+        CREATE TABLE IF NOT EXISTS feedback (
+            request_id   TEXT NOT NULL REFERENCES request_log (request_id) ON DELETE CASCADE,
+            key_id       TEXT NOT NULL,          -- first 12 hex of the caller's key hash
+            flag         TEXT NOT NULL CHECK (flag IN ('wrong', 'correct', 'unsure')),
+            note_masked  TEXT,                   -- personal data masked before storage
+            created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+            PRIMARY KEY (request_id, key_id)
+        );
+        """,
+    ),
 ]
 AUDIT_SQL = (
     "UPDATE request_log SET audit_answer = $2, audit_agrees = $3, audit_cost_usd = $4, "
@@ -187,6 +201,26 @@ class Store:
                 reserved,
                 actual,
             )
+
+    # ---- caller feedback (interface I2) ----
+    async def upsert_feedback(
+        self, request_id: str, key_id: str, flag: str, note_masked: str | None
+    ) -> bool:
+        """Record or replace this caller's flag on a request. False if the request is unknown."""
+        try:
+            async with self.pool.acquire(timeout=1) as c:
+                await c.execute(
+                    "INSERT INTO feedback (request_id, key_id, flag, note_masked) "
+                    "VALUES ($1, $2, $3, $4) ON CONFLICT (request_id, key_id) DO UPDATE SET "
+                    "flag = EXCLUDED.flag, note_masked = EXCLUDED.note_masked, updated_at = now()",
+                    request_id,
+                    key_id,
+                    flag,
+                    note_masked,
+                )
+        except asyncpg.ForeignKeyViolationError:
+            return False
+        return True
 
     # ---- asynchronous request log ----
     def enqueue_log(self, row: dict[str, Any]) -> None:
