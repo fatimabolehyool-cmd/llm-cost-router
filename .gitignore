@@ -13,3 +13,6 @@ exp2_policy_serving/model_repo/routing-policy/model.joblib
 coverage.xml
 htmlcov/
 .ruff_cache/
+
+# generated from the MLflow registry by `make promote` / `make rollback` / `make policy-export`
+policy_models/
