@@ -22,6 +22,7 @@ The upgraded images must be rebuilt and re-checked (S1–S3, E2) before release.
 | Date | Lock file | Package | Pinned | Fixed in | Action |
 |---|---|---|---|---|---|
 | 12 Nov 2026 | `requirements-dev.txt` (test runner, not deployed) | pytest (PYSEC-2026-1845) | 8.4.2 | 9.0.3 | Upgraded; dev tools added to the CI audit, which previously checked only deployed lock files |
+| 13 Nov 2026 | router, pipelines and policy-server locks | opentelemetry-api (CVE-2026-126360, GHSA-mf5v-w3w3-f6cg: ReDoS in `traceparent` extraction) | 1.45.1 | 1.45.2 | Upgraded with the matching OpenTelemetry packages (1.45.2 / 0.66b2); inter-package pins checked; images rebuilt and the stack re-run |
 
 ## Accepted: starlette 0.46.2 in the policy server image
 

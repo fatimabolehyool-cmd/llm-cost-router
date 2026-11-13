@@ -1,0 +1,39 @@
+{
+  "split": "release_eval",
+  "n": 1057,
+  "champion": {
+    "name": "run-e1d8cf42",
+    "coverage": 0.7426679280983917,
+    "accepted_accuracy": 0.8509554140127389,
+    "false_accept_upper95": 0.17566506044485755,
+    "escalations": 272,
+    "senior_usd_per_1000": 0.69,
+    "registry_version": "3"
+  },
+  "challenger": {
+    "name": "run-fcf5dddd",
+    "coverage": 0.7426679280983917,
+    "accepted_accuracy": 0.8509554140127389,
+    "false_accept_upper95": 0.17566506044485755,
+    "escalations": 272,
+    "senior_usd_per_1000": 0.69,
+    "registry_version": "5"
+  },
+  "decisions": {
+    "same": 1057,
+    "now_escalated": 0,
+    "now_escalated_wrong_answers": 0,
+    "now_accepted": 0,
+    "now_accepted_wrong_answers": 0,
+    "challenger_right_only": 0,
+    "champion_right_only": 0,
+    "sign_test_p": 1.0
+  },
+  "gate_vs_champion": {
+    "accuracy_not_worse": true,
+    "coverage_within_2pts": true,
+    "false_accept_upper95_le_25pct": true
+  },
+  "verdict": "eligible for promotion",
+  "senior_usd_per_call": 0.0027
+}
