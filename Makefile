@@ -226,6 +226,12 @@ env:             ## create .env from the example on first use (local testing val
 s1: env          ## S1: core stack starts, serves all modes, fails safely, recovers
 	$(PY) smoke/s1_compose.py
 
+e2e: env         ## end-to-end tests on the Compose stack with MOCK models (no Ollama, no API cost)
+	$(DOCKER_UP)
+	AUDIT_RATE=0 BREAKER_COOLDOWN_S=0 $(COMPOSE) up -d --wait --build postgres mock-models router
+	E2E_ROUTER_URL=http://localhost:8000 $(PY) -m pytest -m e2e -p no:cacheprovider; status=$$?; \
+		$(COMPOSE) up -d --wait router; exit $$status
+
 s3: env          ## S3: canary test, sensitive data never leaves (breaker cooldown 0, every answer audited)
 	$(DOCKER_UP)
 	BREAKER_COOLDOWN_S=0 AUDIT_RATE=1 $(COMPOSE) up -d --wait --build router
