@@ -88,6 +88,7 @@
   .msg.me { align-self: flex-end; color: #fff; background: var(--grad-primary); border-bottom-right-radius: 5px; }
   .msg.bot { align-self: flex-start; background: rgba(20, 40, 95, 0.55); border: 1px solid var(--glass-edge); border-bottom-left-radius: 5px; }
   .msg.err { color: var(--danger); }
+  .msg .rtype { display: block; margin-bottom: 3px; font-size: var(--fs-sm); color: #bcd0ff; }
   .msg .meta { display: block; margin-top: 4px; font-size: var(--fs-xs); color: var(--muted); }
   .dots i { display: inline-block; width: 6px; height: 6px; margin: 0 2px; border-radius: 50%; background: #9fb9ff; animation: blink 1s infinite; }
   .dots i:nth-child(2) { animation-delay: .15s; }
@@ -498,6 +499,7 @@
 </main>
 <footer class="wrap">
 Costs are the router's own accounting of real API usage. "Opus for every question" assumes $0.0027 per question, the mean measured in the held-out evaluation.
+  Chat replies are example texts prepared for each request type; the router decides which one fits.
   Test questions: MMLU (MIT licence) and Banking77 (CC BY 4.0). The access key you type is sent only to this router and is not stored.
 </footer>
 
@@ -699,6 +701,88 @@ function showRecord(out, payload) {
 function showError(msg) { $("record").replaceChildren(el("p", msg, "error")); }
 
 // ---------------------------------------------------------------- chat
+// Example prepared replies, one per request type. A bank writes its own; the router only decides which
+// one fits. Kept as plain JSON so tests/test_demo.py can check every request type has one.
+const REPLIES = {
+ "Refund_not_showing_up": "Refunds can take a few working days to appear after the shop sends them. If it still isn't there after that, send us the receipt and we'll trace it.",
+ "activate_my_card": "You can activate your new card in the app under Cards, or by making a chip-and-PIN payment.",
+ "age_limit": "You need to be 18 or over to open an account in your own name.",
+ "apple_pay_or_google_pay": "You can add your card to Apple Pay or Google Pay from the app under Cards, then Add to wallet.",
+ "atm_support": "You can use your card at most ATMs that show the Visa or Mastercard logo. Your limits are in the app under Cards.",
+ "automatic_top_up": "You can turn on automatic top-up in the app under Top up and choose the amount and the trigger balance.",
+ "balance_not_updated_after_bank_transfer": "Bank transfers can take a little while to show in your balance. If it's taking longer than expected, send us the transfer details.",
+ "balance_not_updated_after_cheque_or_cash_deposit": "Cheque and cash deposits are checked before they reach your balance. If yours hasn't appeared, send us the deposit details.",
+ "beneficiary_not_allowed": "Some recipients can't be added for security reasons. Check the details, and if it still fails, send us the name and bank of the recipient.",
+ "cancel_transfer": "A transfer can be cancelled in the app while it's still pending. Once it's sent, we'll ask the receiving bank to return it.",
+ "card_about_to_expire": "We'll send your new card before the old one expires. Check that your address in the app is up to date.",
+ "card_acceptance": "Your card works wherever Visa or Mastercard is accepted, in shops and online.",
+ "card_arrival": "New cards usually take a few working days to arrive. You can follow yours in the app under Cards.",
+ "card_delivery_estimate": "You can see the expected delivery date for your card in the app under Cards.",
+ "card_linking": "You can link a card you already have in the app under Cards, then Link a card.",
+ "card_not_working": "Check that the card isn't frozen in the app. If it still doesn't work, freeze it and order a replacement there.",
+ "card_payment_fee_charged": "Some card payments carry a fee, shown in the app's fee list. Send us the payment details and we'll check this one.",
+ "card_payment_not_recognised": "Freeze your card in the app now, then send us the payment details so we can look into it.",
+ "card_payment_wrong_exchange_rate": "Card payments in another currency use the rate on the day they settle. Send us the payment and we'll check the rate used.",
+ "card_swallowed": "Freeze the card in the app and order a replacement there. The ATM's bank will destroy the old card.",
+ "cash_withdrawal_charge": "Some cash withdrawals carry a fee, shown in the app's fee list. Send us the withdrawal details and we'll check this one.",
+ "cash_withdrawal_not_recognised": "Freeze your card in the app now, then send us the withdrawal details so we can look into it.",
+ "change_pin": "You can change your PIN at most ATMs, or view it in the app under Cards.",
+ "compromised_card": "Freeze your card in the app straight away and order a new one there. We'll help with any payments you don't recognise.",
+ "contactless_not_working": "Contactless sometimes needs one chip-and-PIN payment first. If it still fails, tell us where it happened.",
+ "country_support": "You can see the countries we support in the app under Help, then Where we work.",
+ "declined_card_payment": "A payment can be declined because of your balance, a limit or a security check. The app shows the reason under the payment.",
+ "declined_cash_withdrawal": "A withdrawal can be declined because of your balance, a limit or the ATM itself. The app shows the reason under the withdrawal.",
+ "declined_transfer": "A transfer can be declined because of your balance, a limit or a security check. The app shows the reason under the transfer.",
+ "direct_debit_payment_not_recognised": "You can cancel a direct debit in the app. Send us the payment details and we'll help you get the money back.",
+ "disposable_card_limits": "Disposable virtual cards follow your account limits and change their details after each payment.",
+ "edit_personal_details": "You can update most personal details in the app under Profile. Some changes need a quick identity check.",
+ "exchange_charge": "Some currency exchanges carry a fee, shown in the app before you confirm.",
+ "exchange_rate": "The app shows the current exchange rate before you exchange or pay in another currency.",
+ "exchange_via_app": "You can exchange money between currencies in the app under Accounts, then Exchange.",
+ "extra_charge_on_statement": "Send us the line on your statement and we'll explain what the charge is.",
+ "failed_transfer": "If a transfer fails, the money comes back to your account. The app shows the reason under the transfer.",
+ "fiat_currency_support": "You can see the currencies you can hold and send in the app under Accounts.",
+ "get_disposable_virtual_card": "You can create a disposable virtual card in the app under Cards, then New virtual card.",
+ "get_physical_card": "You can order a physical card in the app under Cards, then Order card.",
+ "getting_spare_card": "You can order an extra card in the app under Cards.",
+ "getting_virtual_card": "You can create a virtual card in the app under Cards, then New virtual card.",
+ "lost_or_stolen_card": "Freeze your card in the app now and order a replacement there. Tell us about any payments you don't recognise.",
+ "lost_or_stolen_phone": "Sign in from another device and log out of the lost phone, or contact us and we'll lock your account.",
+ "order_physical_card": "You can order a physical card in the app under Cards, then Order card.",
+ "passcode_forgotten": "Tap Forgot passcode on the sign-in screen and follow the steps to set a new one.",
+ "pending_card_payment": "Card payments stay pending until the shop completes them. Most clear within a few days.",
+ "pending_cash_withdrawal": "Cash withdrawals stay pending until the ATM's bank confirms them. Most clear within a few days.",
+ "pending_top_up": "Top-ups can stay pending while they're checked. If yours is taking longer than expected, tell us how you topped up.",
+ "pending_transfer": "Transfers can stay pending while they're processed. The app shows the status under the transfer.",
+ "pin_blocked": "You can unblock your PIN in the app under Cards, or at an ATM that offers PIN services.",
+ "receiving_money": "Share your account details from the app under Accounts, then Details, so people can send you money.",
+ "request_refund": "Refunds for a purchase come from the shop. If the shop won't help, we can raise a dispute for you.",
+ "reverted_card_payment?": "A payment can be reversed when the shop cancels it. The money returns to your account automatically.",
+ "supported_cards_and_currencies": "You can see the cards and currencies we support in the app under Help.",
+ "terminate_account": "You can close your account in the app under Profile, then Close account, once your balance is zero.",
+ "top_up_by_bank_transfer_charge": "You can see any fee for topping up by bank transfer in the app's fee list.",
+ "top_up_by_card_charge": "You can see any fee for topping up by card in the app's fee list.",
+ "top_up_by_cash_or_cheque": "You can see the ways to top up with cash or a cheque in the app under Top up.",
+ "top_up_failed": "If a top-up fails, the money isn't taken. Check the card details and try again, or send us the error message.",
+ "top_up_limits": "You can see your top-up limits in the app under Top up, then Limits.",
+ "top_up_reverted": "A top-up can be reversed if your card's bank cancels it. The money goes back to the card you used.",
+ "topping_up_by_card": "You can top up with a debit or credit card in the app under Top up.",
+ "transaction_charged_twice": "If a payment shows twice, one is often a temporary hold that drops off. If both stay, send us the details.",
+ "transfer_fee_charged": "Some transfers carry a fee, shown in the app before you confirm. Send us the transfer and we'll check this one.",
+ "transfer_into_account": "Share your account details from the app under Accounts, then Details, to receive a transfer.",
+ "transfer_not_received_by_recipient": "Transfers can take a little while to arrive. The app shows the status; if it says sent, we can trace it for you.",
+ "transfer_timing": "Most transfers arrive the same or the next working day. The app shows the expected time before you confirm.",
+ "unable_to_verify_identity": "Make sure your ID photo is clear and matches your details. If it still fails, we'll help you finish the check.",
+ "verify_my_identity": "You can verify your identity in the app under Profile, with a photo of your ID and a short selfie.",
+ "verify_source_of_funds": "We sometimes ask where money comes from, as the law requires. The app lists the documents we accept.",
+ "verify_top_up": "We sometimes check top-ups to keep your account safe. Follow the steps in the app to confirm yours.",
+ "virtual_card_not_working": "Check that the virtual card isn't frozen in the app. If it still fails, create a new one there.",
+ "visa_or_mastercard": "The app shows whether your card is Visa or Mastercard, under Cards.",
+ "why_verify_identity": "The law requires us to verify who you are before you can use all of your account.",
+ "wrong_amount_of_cash_received": "Send us the ATM's location and the time, and we'll ask its bank to check the machine.",
+ "wrong_exchange_rate_for_cash_withdrawal": "Withdrawals in another currency use the rate on the day they settle. Send us the withdrawal and we'll check the rate used."
+};
+
 function pretty(label) { return String(label).replace(/_/g, " ").toLowerCase(); }
 function fill(b, parts, cls) {
   b.replaceChildren(...parts); b.className = "msg bot" + (cls ? " " + cls : "");
@@ -716,9 +800,10 @@ function reply(out) {
   // Plain words for the customer; the routing record keeps the technical detail.
   const sensitive = out.data_class === "sensitive", cost = "$" + out.cost_usd.toFixed(4);
   if (out.status === "answered") {
-    const parts = ["This is about ", el("b", pretty(out.answer)), ". I'll pass it to the right team."];
+    const text = REPLIES[out.answer] || "I'll pass this to the right team.";
+    const parts = [el("b", cap(pretty(out.answer)), "rtype"), text];
     if (sensitive) parts.push(" Your personal data stayed inside the company.");
-    parts.push(el("span", out.escalated ? `Checked by Claude Opus · ${cost}` : "Answered in-house · free", "meta"));
+    parts.push(el("span", "Prepared reply · " + (out.escalated ? `request type checked by Claude Opus · ${cost}` : "answered in-house · free"), "meta"));
     return parts;
   }
   if (sensitive) return ["Your message contains personal data, so it stayed inside the company. I couldn't be sure of the answer, so a colleague will pick it up.", el("span", "Kept in-house · no paid call", "meta")];
