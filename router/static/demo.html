@@ -803,7 +803,7 @@ function reply(out) {
     const text = REPLIES[out.answer] || "I'll pass this to the right team.";
     const parts = [el("b", cap(pretty(out.answer)), "rtype"), text];
     if (sensitive) parts.push(" Your personal data stayed inside the company.");
-    parts.push(el("span", "Prepared reply · " + (out.escalated ? `request type checked by Claude Opus · ${cost}` : "answered in-house · free"), "meta"));
+    parts.push(el("span", out.escalated ? `Checked by Claude Opus · ${cost}` : "Answered in-house · free", "meta"));
     return parts;
   }
   if (sensitive) return ["Your message contains personal data, so it stayed inside the company. I couldn't be sure of the answer, so a colleague will pick it up.", el("span", "Kept in-house · no paid call", "meta")];
