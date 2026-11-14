@@ -70,9 +70,11 @@ make env           # .env from .env.example, with local values (git-ignored)
 make admin-key     # admin key for policy reload, written to .env (never printed)
 make lint cov      # lint, 220 unit tests, coverage (fails below 80%)
 make e2e           # builds the images, starts router + PostgreSQL + MOCK models, 11 workflow tests
+make p1            # load test on the MOCK stack: router overhead and success at 1-4 concurrent
 ```
 
-`make e2e` needs Docker Desktop running; the first build downloads Python base images.
+`make e2e` needs Docker Desktop running; the first build downloads Python base images. `make e2e` and `make p1`
+switch the router to the mock models; run `make real-up` afterwards to use the real system again.
 
 ## 2. Run the real system
 
