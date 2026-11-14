@@ -191,7 +191,29 @@
   tr.new { animation: fadein .5s ease; }
   .yes { color: var(--teal); font-weight: 700; } .no { color: var(--red); font-weight: 700; }
   footer { max-width: 1360px; margin: 0 auto; padding: 4px 36px 30px; color: var(--dim); font-size: 12px; }
-  @media (max-width: 980px) { main { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, 1fr); } .lane { grid-template-columns: 120px 1fr 80px; } }
+  .scrollx { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .scrollx:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 12px; }
+  .swipe { display: none; margin: 4px 6px 0; color: var(--muted); font-size: 12px; }
+  .stack, .card { min-width: 0; }   /* a grid item may shrink below its content; wide content scrolls instead */
+  @media (max-width: 980px) { main { grid-template-columns: minmax(0, 1fr); } .tiles { grid-template-columns: repeat(2, 1fr); } .lane { grid-template-columns: 120px 1fr 80px; } }
+  @media (max-width: 640px) {
+    header { flex-wrap: wrap; padding: 14px 18px; gap: 10px; }
+    .brand { white-space: nowrap; }
+    .key { flex: 1 1 100%; }
+    .key input { flex: 1; width: auto; min-width: 0; }
+    main { padding: 18px 14px 14px; gap: 16px; }
+    .stack { gap: 16px; }
+    .card { padding: 16px; border-radius: 18px; }
+    svg.map { min-width: 720px; }        /* keeps the map's labels readable; the card scrolls instead */
+    .swipe { display: block; }
+    .banner { white-space: normal; text-align: center; }
+    .bannerrow { height: auto; min-height: 44px; }
+    .lane { grid-template-columns: 96px 1fr 70px; font-size: 13px; }
+    table { min-width: 560px; }
+    .rhead .grow { flex: 1 1 100%; order: 3; }   /* the explanation gets its own line */
+    th:nth-child(2), td:nth-child(2) { min-width: 180px; }
+    footer { padding: 4px 18px 24px; }
+  }
   @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -241,6 +263,7 @@
   <div class="stack">
     <section class="card mapcard">
       <div class="maphead"><h2>How the router decides</h2><div class="status" id="status">Ready</div></div>
+      <div class="scrollx" id="mapscroll" tabindex="0" role="region" aria-label="Routing map, scrolls sideways on small screens">
       <svg class="map" id="map" viewBox="0 50 900 300" role="img" aria-label="Live map of the routing decision">
         <defs>
           <filter id="glow" filterUnits="userSpaceOnUse" x="-20" y="0" width="940" height="420"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -294,6 +317,8 @@
           <circle class="icbg" cx="764" cy="314" r="14"/><path class="ic" d="M764 305l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/><path class="ic" d="M761 313l2 2 4-4"/>
           <text x="786" y="312">Kept in-house</text><text class="s" x="786" y="327" id="t-K">abstained safely</text></g>
       </svg>
+      </div>
+      <p class="swipe">Swipe sideways to see the whole route</p>
       <div class="bannerrow"><div class="banner" id="banner">Personal data detected · nothing left your company</div></div>
     </section>
 
@@ -322,10 +347,12 @@
       <div class="lane"><span>Router (actual)</span><div class="track"><div class="bar router" id="bar-r"></div></div><span class="v" id="t-cost">$0.0000</span></div>
       <div class="lane"><span>Opus for every question</span><div class="track"><div class="bar opus" id="bar-o"></div></div><span class="v" id="t-opus">$0.0000</span></div>
     </div>
+    <div class="scrollx" tabindex="0" role="region" aria-label="Live test results, scrolls sideways on small screens">
     <table>
       <thead><tr><th>#</th><th>Question</th><th>Route</th><th>Answer</th><th>Correct</th><th class="num">Cost</th><th class="num">Latency</th></tr></thead>
       <tbody id="log"></tbody>
     </table>
+    </div>
   </section>
 </main>
 <footer>
@@ -390,6 +417,7 @@ function status(html) { const s = $("status"); s.replaceChildren(); for (const p
 function banner(show, text) { const b = $("banner"); if (text) b.textContent = text; b.classList.toggle("show", show); }
 
 function mapReset() {
+  $("mapscroll").scrollLeft = 0;   // small screens: start each run at the question
   for (const w of WIRES) wire(w);
   for (const n of NODES) node(n);
   $("orb").classList.remove("thinking");
@@ -456,6 +484,11 @@ async function mapResult(out, mode, fast) {
   if (outcome === "K") setText("t-K", sensitive ? "data stayed here" : "abstained safely");
   if (sensitive) { node("S", "locked"); banner(true, "Personal data detected · nothing left your company"); }
   status([short === "Claude Opus" ? "Escalated to " : "Route: ", { b: short }, ` · ${(out.latency_ms / 1000).toFixed(1)} s`]);
+  const sc = $("mapscroll");
+  if (sc.scrollWidth > sc.clientWidth + 4) {   // only on small screens, where the map scrolls
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    sc.scrollTo({ left: sc.scrollWidth, behavior: calm ? "auto" : "smooth" });
+  }
 }
 function mapError(code, message) {
   $("orb").classList.remove("thinking");
