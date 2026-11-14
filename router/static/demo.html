@@ -216,6 +216,20 @@
     th:nth-child(2), td:nth-child(2) { min-width: 180px; }
     footer { padding: 4px 18px 24px; }
   }
+  /* Touch screens: every control at least 44 px tall with at least 8 px between neighbours.
+     Mouse and trackpad users keep the compact layout (the web minimum is 24 px). */
+  .toggle { min-height: 28px; }
+  .toggle input { width: 20px; height: 20px; }
+  @media (pointer: coarse) {
+    button, select, .key input { min-height: 44px; }
+    .chips { gap: 8px; }
+    .chip { padding: 10px 14px; }
+    .seg { gap: 6px; }
+    .seg button { min-height: 44px; }
+    .toggle { min-height: 44px; }
+    .toggle input { width: 24px; height: 24px; }
+    .rhead { gap: 10px; }
+  }
   @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 </style>
 </head>
