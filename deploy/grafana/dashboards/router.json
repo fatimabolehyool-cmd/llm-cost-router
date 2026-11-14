@@ -195,7 +195,7 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Sensitive requests kept on the Mac / egress refusals",
+      "title": "Sensitive requests kept in-house / egress refusals",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

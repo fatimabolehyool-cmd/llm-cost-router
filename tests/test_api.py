@@ -33,10 +33,11 @@ class FakeStore:
 
 class FakeOrch:
     def __init__(self, raises=None):
-        self.raises, self.calls = raises, 0
+        self.raises, self.calls, self.task_type = raises, 0, None
 
     async def answer(self, question, task_type, options, mode, sensitive):
         self.calls += 1
+        self.task_type = task_type
         if self.raises:
             raise self.raises
         return Outcome(
@@ -87,6 +88,28 @@ def test_answer_returns_the_routing_record(client):
         "policy_accepted",
         0.83,
     )
+
+
+@pytest.mark.parametrize(
+    "options, expected",
+    [
+        (PLANETS, "choice"),  # exactly four options: a question with options
+        (["card_arrival", "lost_or_stolen_card", "exchange_rate"], "label"),
+        ([f"intent_{i}" for i in range(77)], "label"),  # the bank's 77 request types
+    ],
+)
+def test_task_type_is_inferred_from_the_options_when_omitted(client, options, expected):
+    body = {"question": "My new card has not arrived yet.", "options": options}
+    r = client.post("/v1/answer", json=body, headers={"X-API-Key": KEY})
+    assert r.status_code == 200 and r.json()["task_type"] == expected
+    assert app_module.app.state.orch.task_type == expected
+
+
+def test_an_explicit_task_type_wins_over_inference(client):
+    four_labels = ["card_arrival", "lost_or_stolen_card", "exchange_rate", "pending_transfer"]
+    r = ask(client, task_type="label", options=four_labels)
+    assert r.status_code == 200 and r.json()["task_type"] == "label"
+    assert app_module.app.state.orch.task_type == "label"
 
 
 @pytest.mark.parametrize("key", [None, "wrong-key"])

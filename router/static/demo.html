@@ -111,7 +111,7 @@
   .node rect { fill: rgba(10, 24, 62, 0.82); stroke: rgba(130, 170, 255, 0.32); stroke-width: 1.3; transition: stroke .3s, fill .3s; }
   .node .ic { fill: none; stroke: #9fb9ff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: stroke .3s; }
   .node .icbg { fill: rgba(79, 140, 255, 0.10); stroke: rgba(130, 170, 255, 0.35); }
-  .node text { fill: var(--ink); font-size: 14.5px; font-weight: 600; }
+  .node text { fill: var(--ink); font-size: 13.5px; font-weight: 600; }
   .node text.s { fill: var(--muted); font-size: 11.5px; font-weight: 500; }
   .node { --nc: var(--blue); transform-box: fill-box; transform-origin: center; transition: opacity .35s; }
   .node.lit rect { stroke: var(--nc); fill: rgba(20, 45, 110, 0.9); filter: url(#glow); }
@@ -150,11 +150,13 @@
     border: 1px solid currentColor; background: rgba(255, 255, 255, 0.04); }
   .b-local { color: #7fb0ff; box-shadow: 0 0 14px rgba(79, 140, 255, 0.35); }
   .b-paid { color: var(--violet); box-shadow: 0 0 14px rgba(169, 139, 255, 0.35); }
-  .b-mac { color: var(--teal); box-shadow: 0 0 14px rgba(47, 224, 194, 0.35); }
+  .b-inhouse { color: var(--teal); box-shadow: 0 0 14px rgba(47, 224, 194, 0.35); }
   .b-warn { color: var(--amber); box-shadow: 0 0 14px rgba(255, 200, 87, 0.25); }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 13.5px; }
   dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); }
+  .opt { text-transform: none; letter-spacing: 0; }
+  .cardsub { margin: -6px 0 14px; color: var(--muted); font-size: 13px; }
   .error { color: var(--red); font-weight: 600; }
   .fade { animation: fadein .45s ease; }
   @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
@@ -196,13 +198,13 @@
     <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#8fb6ff"/></svg>
     Cost-aware Router
   </div>
-  <label class="key">API key <input id="key" type="password" autocomplete="off" placeholder="X-API-Key"></label>
+  <label class="key">Access key <input id="key" type="password" autocomplete="off" placeholder="router access key"></label>
 </header>
 
 <section class="hero">
-  <span class="pill"><span class="live"></span>Live on this Mac · gemma3:12b + phi4:14b · Claude Opus 5.5</span>
+  <span class="pill"><span class="live"></span>Live · in-house models gemma3:12b + phi4:14b · Claude Opus 5.5</span>
   <h1>Ask once. <span class="grad">Pay only when it matters.</span></h1>
-  <p class="sub">Two local models answer first. Claude Opus is called only when their answer can't be trusted, and personal data never leaves this Mac.</p>
+  <p class="sub">Two in-house models answer first. Claude Opus is called only when their answer can't be trusted, and personal data never leaves your company.</p>
 </section>
 
 <main>
@@ -217,18 +219,12 @@
       </div>
       <label class="block" for="q">Question</label>
       <textarea id="q"></textarea>
-      <label class="block">Type</label>
-      <div class="seg" id="task">
-        <button data-task="choice" aria-pressed="true">Multiple choice</button>
-        <button data-task="label" aria-pressed="false">Help-desk intent</button>
+      <label class="block">Answer options <span class="opt">(optional)</span></label>
+      <div class="options">
+        <input type="text" id="o0" aria-label="Option A" placeholder="A"><input type="text" id="o1" aria-label="Option B" placeholder="B">
+        <input type="text" id="o2" aria-label="Option C" placeholder="C"><input type="text" id="o3" aria-label="Option D" placeholder="D">
       </div>
-      <div id="choiceBox">
-        <label class="block">Options A–D</label>
-        <div class="options">
-          <input type="text" id="o0" aria-label="Option A"><input type="text" id="o1" aria-label="Option B">
-          <input type="text" id="o2" aria-label="Option C"><input type="text" id="o3" aria-label="Option D">
-        </div>
-      </div>
+      <p class="hint">Leave empty for a customer message: the router sorts it into one of 77 request types. Fill all four and it picks the right option.</p>
       <label class="block">Mode</label>
       <div class="seg" id="mode">
         <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
@@ -288,30 +284,31 @@
 
         <g class="node" id="n-L" style="--nc: #4f8cff"><rect x="738" y="62" width="150" height="48" rx="24"/>
           <circle class="icbg" cx="764" cy="86" r="14"/><path class="ic" d="M757 86l5 5 9-10"/>
-          <text x="786" y="84">On the Mac</text><text class="s" x="786" y="99" id="t-L">answered, free</text></g>
+          <text x="786" y="84">Your company</text><text class="s" x="786" y="99" id="t-L">answered, free</text></g>
         <g class="node" id="n-S" style="--nc: #a98bff"><rect x="738" y="176" width="150" height="48" rx="24"/>
           <circle class="icbg" cx="764" cy="200" r="14"/><path class="ic" d="M764 191l2.5 6 6 .5-4.5 4 1.5 6-5.5-3.5-5.5 3.5 1.5-6-4.5-4 6-.5z"/>
-          <text x="786" y="198">Claude Opus</text><text class="s" x="786" y="213" id="t-S">paid, outside</text>
+          <text x="786" y="198">Claude Opus</text><text class="s" x="786" y="213" id="t-S">paid, external</text>
           <g class="lock"><circle cx="884" cy="178" r="11" fill="#ff6b81"/><rect x="879" y="177" width="10" height="7.5" rx="1.5" fill="#fff"/><path d="M881.2 177v-2.4a2.8 2.8 0 0 1 5.6 0v2.4" fill="none" stroke="#fff" stroke-width="1.6"/></g></g>
         <g class="node" id="n-K" style="--nc: #2fe0c2"><rect x="738" y="290" width="150" height="48" rx="24"/>
           <circle class="icbg" cx="764" cy="314" r="14"/><path class="ic" d="M764 305l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/><path class="ic" d="M761 313l2 2 4-4"/>
-          <text x="786" y="312">Kept on Mac</text><text class="s" x="786" y="327" id="t-K">abstained safely</text></g>
+          <text x="786" y="312">Kept in-house</text><text class="s" x="786" y="327" id="t-K">abstained safely</text></g>
       </svg>
-      <div class="bannerrow"><div class="banner" id="banner">Personal data detected · nothing left this Mac</div></div>
+      <div class="bannerrow"><div class="banner" id="banner">Personal data detected · nothing left your company</div></div>
     </section>
 
     <section class="card">
       <h2>Routing record</h2>
+      <p class="cardsub">The receipt for your last question, saved for audit.</p>
       <div id="record"><p class="empty">Press Send and watch the map: the lit path is the route your question took.</p></div>
     </section>
   </div>
 
   <section class="card wide">
-    <h2>Replay labelled questions</h2>
+    <h2>Live test: router vs Opus-only</h2>
     <div class="rhead">
       <label>Questions <select id="count"><option>10</option><option selected>20</option><option>40</option></select></label>
-      <span class="grow">From the held-out test set, so the right answers are known. Uses the mode above.</span>
-      <button class="start" id="start">Start replay</button><button id="stop" disabled>Stop</button>
+      <span class="grow">Runs saved questions with known answers through the router and keeps score: how many it got right, how often it paid for Opus, and what it spent next to sending every question to Opus. Uses the mode above.</span>
+      <button class="start" id="start">Start test</button><button id="stop" disabled>Stop</button>
     </div>
     <div class="tiles">
       <div class="tile" id="tl-n"><b id="t-n">0</b><span>questions</span></div>
@@ -332,7 +329,7 @@
 </main>
 <footer>
   Costs are the router's own accounting of real API usage. "Opus for every question" assumes $0.0027 per question, the mean measured in the held-out evaluation.
-  Replay questions: MMLU (MIT licence) and Banking77 (CC BY 4.0). The API key you type is sent only to this router and is not stored.
+  Test questions: MMLU (MIT licence) and Banking77 (CC BY 4.0). The access key you type is sent only to this router and is not stored.
 </footer>
 
 <script>
@@ -341,27 +338,27 @@ const OPUS_PER_CALL = 0.0027;
 const RING = 314.16;
 const MODE_HINTS = {
   cheapest: "Local answer only, never paid. Unverified when the two models disagree.",
-  balanced: "Local answer when it is trusted, otherwise Claude Opus.",
-  best_quality: "Straight to Claude Opus (sensitive questions still stay on the Mac)."
+  balanced: "In-house answer when it is trusted, otherwise Claude Opus.",
+  best_quality: "Straight to Claude Opus (sensitive questions still stay inside your company)."
 };
 // reason -> [explanation, badge class, short route, outcome node]
 const WHY = {
-  juniors_agreed: ["Both local models gave the same answer, so it was accepted without a paid call.", "b-local", "on the Mac", "L"],
-  policy_accepted: ["The policy was confident the local answer is right, so no paid call was needed.", "b-local", "on the Mac", "L"],
-  cheapest_unverified: ["Cheapest mode: the local answer was returned without verification.", "b-warn", "on the Mac, unverified", "L"],
+  juniors_agreed: ["Both local models gave the same answer, so it was accepted without a paid call.", "b-local", "in-house", "L"],
+  policy_accepted: ["The policy was confident the local answer is right, so no paid call was needed.", "b-local", "in-house", "L"],
+  cheapest_unverified: ["Cheapest mode: the local answer was returned without verification.", "b-warn", "in-house, unverified", "L"],
   escalated_disagreement: ["The local models disagreed, so the question went to Claude Opus.", "b-paid", "Claude Opus", "S"],
   escalated_low_confidence: ["The policy wasn't confident in the local answer, so the question went to Claude Opus.", "b-paid", "Claude Opus", "S"],
   best_quality_mode: ["Best-quality mode: the question went straight to Claude Opus.", "b-paid", "Claude Opus", "S"],
-  sensitive_disagreement: ["Personal data must stay on the Mac and the local models disagreed, so the router abstained instead of sending it out.", "b-mac", "kept on the Mac", "K"],
-  sensitive_low_confidence: ["Personal data must stay on the Mac and the local answer wasn't trusted, so the router abstained instead of sending it out.", "b-mac", "kept on the Mac", "K"],
+  sensitive_disagreement: ["Personal data must stay inside your company and the local models disagreed, so the router abstained instead of sending it out.", "b-inhouse", "kept in-house", "K"],
+  sensitive_low_confidence: ["Personal data must stay inside your company and the local answer wasn't trusted, so the router abstained instead of sending it out.", "b-inhouse", "kept in-house", "K"],
   juniors_unreadable: ["Neither local model gave a usable answer.", "b-warn", "abstained", "K"],
-  egress_blocked: ["The egress gateway refused to send personal data out.", "b-mac", "kept on the Mac", "K"],
+  egress_blocked: ["The egress gateway refused to send personal data out.", "b-inhouse", "kept in-house", "K"],
   budget_exceeded: ["The spend cap is reached, so the router abstained instead of paying.", "b-warn", "abstained (budget)", "K"],
   senior_unavailable: ["Claude Opus could not be reached, so the router abstained rather than guess.", "b-warn", "abstained", "K"],
   senior_unreadable: ["Claude Opus's reply could not be read, so the router abstained.", "b-warn", "abstained", "K"]
 };
 const $ = (id) => document.getElementById(id);
-const state = { task: "choice", mode: "balanced", labels: [], items: [], running: false };
+const state = { mode: "balanced", labels: [], items: [], running: false };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function el(tag, text, cls) {
@@ -398,7 +395,7 @@ function mapReset() {
   ring(0);
   setText("t-orb", "P"); setText("t-orbsub", "waiting");
   setText("t-p", "personal data?"); setText("t-j1", "local model 1"); setText("t-j2", "local model 2");
-  setText("t-L", "answered, free"); setText("t-S", "paid, outside"); setText("t-K", "abstained safely");
+  setText("t-L", "answered, free"); setText("t-S", "paid, external"); setText("t-K", "abstained safely");
   banner(false);
 }
 function mapThinking(mode, flagged) {
@@ -456,7 +453,7 @@ async function mapResult(out, mode, fast) {
   if (outcome === "L") setText("t-L", out.verified ? `free · $${out.cost_usd.toFixed(4)}` : "unverified · $0");
   if (outcome === "S") setText("t-S", `paid · $${out.cost_usd.toFixed(4)}`);
   if (outcome === "K") setText("t-K", sensitive ? "data stayed here" : "abstained safely");
-  if (sensitive) { node("S", "locked"); banner(true, "Personal data detected · nothing left this Mac"); }
+  if (sensitive) { node("S", "locked"); banner(true, "Personal data detected · nothing left your company"); }
   status([short === "Claude Opus" ? "Escalated to " : "Route: ", { b: short }, ` · ${(out.latency_ms / 1000).toFixed(1)} s`]);
 }
 function mapError(code, message) {
@@ -469,22 +466,24 @@ function mapError(code, message) {
 function pressed(groupId, attr, value) {
   for (const b of $(groupId).querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset[attr] === value));
 }
-function setTask(task) { state.task = task; pressed("task", "task", task); $("choiceBox").hidden = task !== "choice"; }
 function setMode(mode) { state.mode = mode; pressed("mode", "mode", mode); $("modeHint").textContent = MODE_HINTS[mode]; }
 function setOptions(opts) { for (let i = 0; i < 4; i++) $("o" + i).value = opts[i] || ""; }
 const PRESETS = {
-  easy: () => { setTask("choice"); $("q").value = "Which planet is closest to the Sun?"; setOptions(["Venus", "Mercury", "Earth", "Mars"]); $("sensitive").checked = false; },
-  ticket: () => { setTask("label"); $("q").value = "I was charged twice for the same coffee this morning."; $("sensitive").checked = false; },
-  sensitive: () => { setTask("label"); $("q").value = "My card 4111 1111 1111 1111 was charged twice, please refund it."; $("sensitive").checked = false; },
+  easy: () => { $("q").value = "Which planet is closest to the Sun?"; setOptions(["Venus", "Mercury", "Earth", "Mars"]); $("sensitive").checked = false; },
+  ticket: () => { setOptions([]); $("q").value = "I was charged twice for the same coffee this morning."; $("sensitive").checked = false; },
+  sensitive: () => { setOptions([]); $("q").value = "My card 4111 1111 1111 1111 was charged twice, please refund it."; $("sensitive").checked = false; },
   hard: () => {
     // a word problem the local models often disagree on, so the senior is usually asked
     const it = state.items.find((x) => x.id === "mmlu-test-2220") || state.items.find((x) => x.task_type === "choice");
     if (!it) return;
-    setTask("choice"); $("q").value = it.question; setOptions(it.options); $("sensitive").checked = false;
+    $("q").value = it.question; setOptions(it.options); $("sensitive").checked = false;
   }
 };
-function body(question, task, options, sensitive) {
-  return { question, task_type: task, options: task === "choice" ? options : state.labels, mode: state.mode, sensitive };
+function body(question, options, sensitive) {
+  // no task type is sent: the router reads four options as a question with options, none as a customer message
+  const filled = options.filter((o) => o).length;
+  if (filled && filled !== 4) throw new ApiError("options", "Fill in all four options, or leave them all empty for a customer message.");
+  return { question, options: filled ? options : state.labels, mode: state.mode, sensitive };
 }
 class ApiError extends Error { constructor(code, message) { super(message); this.code = code; } }
 async function call(payload) {
@@ -492,14 +491,14 @@ async function call(payload) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
     const err = (data && data.error) || {};
-    if (r.status === 401) throw new ApiError("unauthorized", "Enter the API key at the top right.");
+    if (r.status === 401) throw new ApiError("unauthorized", "Enter the access key at the top right.");
     throw new ApiError(err.code || String(r.status), `${r.status} ${err.code || ""}: ${err.message || "request failed"}`);
   }
   return data;
 }
 function answerText(out, payload) {
   if (out.answer === null || out.answer === undefined) return "No answer · abstained";
-  if (payload.task_type === "choice") { const i = "ABCD".indexOf(out.answer); return i >= 0 ? `${out.answer} · ${payload.options[i]}` : out.answer; }
+  if (out.task_type === "choice") { const i = "ABCD".indexOf(out.answer); return i >= 0 ? `${out.answer} · ${payload.options[i]}` : out.answer; }
   return out.answer;
 }
 function showRecord(out, payload) {
@@ -507,11 +506,13 @@ function showRecord(out, payload) {
   const wrap = el("div", undefined, "fade");
   const [why, cls, short] = WHY[out.reason] || [out.reason, "b-warn", out.reason];
   wrap.append(el("span", short, "badge " + cls));
-  if (out.data_class === "sensitive") wrap.append(" ", el("span", "personal data", "badge b-mac"));
+  if (out.data_class === "sensitive") wrap.append(" ", el("span", "personal data", "badge b-inhouse"));
   wrap.append(el("div", answerText(out, payload), "answer"), el("p", why, "why"));
   const dl = el("dl");
+  const readAs = out.task_type === "choice" ? "question with options"
+    : out.task_type === "label" ? `customer message (one of ${state.labels.length} request types)` : "–";
   const rows = [
-    ["Answered by", out.model || "–"], ["Cost", "$" + out.cost_usd.toFixed(4)], ["Latency", out.latency_ms + " ms"],
+    ["Read as", readAs], ["Answered by", out.model || "–"], ["Cost", "$" + out.cost_usd.toFixed(4)], ["Latency", out.latency_ms + " ms"],
     ["Verified", out.verified ? "yes" : "no"], ["Decided by", (out.versions && out.versions.policy) || "–"],
     ["P(local answer correct)", out.policy_p === null || out.policy_p === undefined ? "–" : out.policy_p.toFixed(2)],
     ["Reason code", out.reason], ["Request ID", out.request_id]
@@ -522,7 +523,9 @@ function showRecord(out, payload) {
 function showError(msg) { $("record").replaceChildren(el("p", msg, "error")); }
 
 async function send() {
-  const payload = body($("q").value.trim(), state.task, [0, 1, 2, 3].map((i) => $("o" + i).value.trim()), $("sensitive").checked);
+  let payload;
+  try { payload = body($("q").value.trim(), [0, 1, 2, 3].map((i) => $("o" + i).value.trim()), $("sensitive").checked); }
+  catch (e) { showError(e.message); return; }
   $("send").disabled = true;
   mapThinking(state.mode, payload.sensitive);
   try {
@@ -568,7 +571,7 @@ async function replay() {
   const items = state.items.slice(0, Number($("count").value));
   for (let i = 0; i < items.length && state.running; i++) {
     const it = items[i];
-    const payload = body(it.question, it.task_type, it.options || [], false);
+    const payload = body(it.question, it.options || [], false);
     mapThinking(state.mode, false);
     try {
       const out = await call(payload);
@@ -585,11 +588,10 @@ async function replay() {
     renderStats();
   }
   state.running = false; $("start").disabled = false; $("stop").disabled = true; $("send").disabled = false;
-  status(["Replay finished: ", { b: `${stats.n} questions` }, ` · router $${stats.cost.toFixed(4)} vs Opus $${(stats.n * OPUS_PER_CALL).toFixed(4)}`]);
+  status(["Live test finished: ", { b: `${stats.n} questions` }, ` · router $${stats.cost.toFixed(4)} vs Opus $${(stats.n * OPUS_PER_CALL).toFixed(4)}`]);
 }
 
 // ---------------------------------------------------------------- start-up
-for (const b of $("task").querySelectorAll("button")) b.addEventListener("click", () => setTask(b.dataset.task));
 for (const b of $("mode").querySelectorAll("button")) b.addEventListener("click", () => setMode(b.dataset.mode));
 for (const b of document.querySelectorAll("[data-preset]")) b.addEventListener("click", () => PRESETS[b.dataset.preset]());
 $("send").addEventListener("click", send);
