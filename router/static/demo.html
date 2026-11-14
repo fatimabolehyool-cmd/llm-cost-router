@@ -72,18 +72,24 @@
   .wide { grid-column: 1 / -1; }
   .stack { display: grid; gap: 22px; align-content: start; }
 
-  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .chat { display: flex; flex-direction: column; gap: 8px; min-height: 120px; max-height: 300px; overflow-y: auto; padding: 2px 2px 10px; }
+  .msg { max-width: 86%; padding: 9px 13px; border-radius: 16px; font-size: 14px; line-height: 1.4; animation: fadein .3s ease both; }
+  .msg.me { align-self: flex-end; color: #fff; background: linear-gradient(180deg, #5b97ff, #3d6ff0); border-bottom-right-radius: 5px; }
+  .msg.bot { align-self: flex-start; background: rgba(20, 40, 95, 0.55); border: 1px solid var(--glass-edge); border-bottom-left-radius: 5px; }
+  .msg.err { color: var(--red); }
+  .msg .meta { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+  .dots i { display: inline-block; width: 6px; height: 6px; margin: 0 2px; border-radius: 50%; background: #9fb9ff; animation: blink 1s infinite; }
+  .dots i:nth-child(2) { animation-delay: .15s; }
+  .dots i:nth-child(3) { animation-delay: .3s; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+  .chip { font-size: 12.5px; padding: 6px 11px; border-radius: 999px; }
   button { font: inherit; color: var(--ink); cursor: pointer; border-radius: 12px; padding: 9px 12px;
     background: rgba(20, 40, 95, 0.45); border: 1px solid var(--glass-edge); transition: transform .15s, border-color .2s, box-shadow .2s, background .2s; }
   button:hover { border-color: rgba(140, 180, 255, 0.55); box-shadow: 0 0 18px rgba(79, 140, 255, 0.25); }
   button:active { transform: scale(0.98); }
   button:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
-  .preset { text-align: left; font-size: 13.5px; }
-  .preset small { display: block; color: var(--muted); font-size: 11.5px; }
   label.block { display: block; margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   textarea { width: 100%; min-height: 74px; resize: vertical; }
-  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .options input { width: 100%; padding: 7px 10px; font-size: 13.5px; }
   .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 14px;
     background: rgba(6, 16, 44, 0.7); border: 1px solid var(--glass-edge); }
   .seg button { border: 0; background: transparent; padding: 7px 8px; font-size: 13.5px; color: var(--muted); border-radius: 10px; }
@@ -155,7 +161,6 @@
   dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 13.5px; }
   dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); }
-  .opt { text-transform: none; letter-spacing: 0; }
   .cardsub { margin: -6px 0 14px; color: var(--muted); font-size: 13px; }
   .error { color: var(--red); font-weight: 600; }
   .fade { animation: fadein .45s ease; }
@@ -210,21 +215,17 @@
 <main>
   <div class="stack">
     <section class="card">
-      <h2>Ask</h2>
-      <div class="presets">
-        <button class="preset" data-preset="easy">Easy question<small>both models agree</small></button>
-        <button class="preset" data-preset="ticket">Help-desk ticket<small>one of 77 intents</small></button>
-        <button class="preset" data-preset="sensitive">Ticket with a card<small>personal data</small></button>
-        <button class="preset" data-preset="hard">Harder question<small>models may disagree</small></button>
+      <h2>Help-desk chat</h2>
+      <div class="chat" id="chat" aria-live="polite">
+        <div class="msg bot">Hi! Tell me what you need help with.</div>
       </div>
-      <label class="block" for="q">Question</label>
-      <textarea id="q"></textarea>
-      <label class="block">Answer options <span class="opt">(optional)</span></label>
-      <div class="options">
-        <input type="text" id="o0" aria-label="Option A" placeholder="A"><input type="text" id="o1" aria-label="Option B" placeholder="B">
-        <input type="text" id="o2" aria-label="Option C" placeholder="C"><input type="text" id="o3" aria-label="Option D" placeholder="D">
+      <div class="chips" aria-label="Suggested messages">
+        <button class="chip" data-preset="simple">My card expires soon</button>
+        <button class="chip" data-preset="tricky">When will I get my new card?</button>
+        <button class="chip" data-preset="sensitive">My card 4111… was charged twice</button>
+        <button class="chip" data-preset="impatient">Hurry and refund me, I am waiting</button>
       </div>
-      <p class="hint">Leave empty for a customer message: the router sorts it into one of 77 request types. Fill all four and it picks the right option.</p>
+      <textarea id="q" aria-label="Your message" placeholder="Type your message…"></textarea>
       <label class="block">Mode</label>
       <div class="seg" id="mode">
         <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
@@ -260,7 +261,7 @@
 
         <g class="node" id="n-q"><rect x="20" y="176" width="150" height="48" rx="24"/>
           <circle class="icbg" cx="46" cy="200" r="14"/><circle class="ic" cx="46" cy="196" r="4"/><path class="ic" d="M38 207c2-4 14-4 16 0"/>
-          <text x="68" y="198">Question</text><text class="s" x="68" y="213">from the caller</text></g>
+          <text x="68" y="198">Message</text><text class="s" x="68" y="213">from a customer</text></g>
         <g class="node" id="n-p"><rect x="212" y="176" width="150" height="48" rx="24"/>
           <circle class="icbg" cx="238" cy="200" r="14"/><path class="ic" d="M238 191l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/>
           <text x="260" y="198">Privacy</text><text class="s" x="260" y="213" id="t-p">personal data?</text></g>
@@ -467,23 +468,18 @@ function pressed(groupId, attr, value) {
   for (const b of $(groupId).querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset[attr] === value));
 }
 function setMode(mode) { state.mode = mode; pressed("mode", "mode", mode); $("modeHint").textContent = MODE_HINTS[mode]; }
-function setOptions(opts) { for (let i = 0; i < 4; i++) $("o" + i).value = opts[i] || ""; }
+// Real tickets from the held-out test split; the comments give what the evaluation recorded.
+function ticket(text) { $("q").value = text; $("sensitive").checked = false; send(); }
 const PRESETS = {
-  easy: () => { $("q").value = "Which planet is closest to the Sun?"; setOptions(["Venus", "Mercury", "Earth", "Mars"]); $("sensitive").checked = false; },
-  ticket: () => { setOptions([]); $("q").value = "I was charged twice for the same coffee this morning."; $("sensitive").checked = false; },
-  sensitive: () => { setOptions([]); $("q").value = "My card 4111 1111 1111 1111 was charged twice, please refund it."; $("sensitive").checked = false; },
-  hard: () => {
-    // a word problem the local models often disagree on, so the senior is usually asked
-    const it = state.items.find((x) => x.id === "mmlu-test-2220") || state.items.find((x) => x.task_type === "choice");
-    if (!it) return;
-    $("q").value = it.question; setOptions(it.options); $("sensitive").checked = false;
-  }
+  simple: () => ticket("My card expires soon"),                // both local models: card_about_to_expire
+  tricky: () => ticket("When will I get my new card?"),        // split: card_delivery_estimate vs card_arrival
+  sensitive: () => ticket("My card 4111 1111 1111 1111 was charged twice, please refund it."),
+  impatient: () => ticket("Hurry and refund me, I am waiting") // split: request_refund vs Refund_not_showing_up
 };
 function body(question, options, sensitive) {
-  // no task type is sent: the router reads four options as a question with options, none as a customer message
-  const filled = options.filter((o) => o).length;
-  if (filled && filled !== 4) throw new ApiError("options", "Fill in all four options, or leave them all empty for a customer message.");
-  return { question, options: filled ? options : state.labels, mode: state.mode, sensitive };
+  // No task type is sent: the router reads four options as a question with options (the live test's
+  // exam questions) and the request-type list as a customer message.
+  return { question, options: options.length ? options : state.labels, mode: state.mode, sensitive };
 }
 class ApiError extends Error { constructor(code, message) { super(message); this.code = code; } }
 async function call(payload) {
@@ -522,17 +518,47 @@ function showRecord(out, payload) {
 }
 function showError(msg) { $("record").replaceChildren(el("p", msg, "error")); }
 
+// ---------------------------------------------------------------- chat
+function pretty(label) { return String(label).replace(/_/g, " ").toLowerCase(); }
+function fill(b, parts, cls) {
+  b.replaceChildren(...parts); b.className = "msg bot" + (cls ? " " + cls : "");
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+function bubble(cls, parts) {
+  const chat = $("chat"), b = el("div", undefined, "msg " + cls);
+  b.append(...parts); chat.append(b);
+  while (chat.children.length > 14) chat.firstElementChild.remove();
+  chat.scrollTop = chat.scrollHeight;
+  return b;
+}
+function dots() { const d = el("span", undefined, "dots"); d.append(el("i"), el("i"), el("i")); return d; }
+function reply(out) {
+  // Plain words for the customer; the routing record keeps the technical detail.
+  const sensitive = out.data_class === "sensitive", cost = "$" + out.cost_usd.toFixed(4);
+  if (out.status === "answered") {
+    const parts = ["This is about ", el("b", pretty(out.answer)), ". I'll pass it to the right team."];
+    if (sensitive) parts.push(" Your personal data stayed inside the company.");
+    parts.push(el("span", out.escalated ? `Checked by Claude Opus · ${cost}` : "Answered in-house · free", "meta"));
+    return parts;
+  }
+  if (sensitive) return ["Your message contains personal data, so it stayed inside the company. I couldn't be sure of the answer, so a colleague will pick it up.", el("span", "Kept in-house · no paid call", "meta")];
+  return ["I can't handle this one safely, so a colleague will pick it up.", el("span", `No answer · ${cost}`, "meta")];
+}
+
 async function send() {
-  let payload;
-  try { payload = body($("q").value.trim(), [0, 1, 2, 3].map((i) => $("o" + i).value.trim()), $("sensitive").checked); }
-  catch (e) { showError(e.message); return; }
-  $("send").disabled = true;
+  const text = $("q").value.trim();
+  if (!text || $("send").disabled) return;
+  const payload = body(text, [], $("sensitive").checked);
+  $("send").disabled = true; $("q").value = "";
+  bubble("me", [text]);
+  const pending = bubble("bot", [dots()]);
   mapThinking(state.mode, payload.sensitive);
   try {
     const out = await call(payload);
     await mapResult(out, payload.mode, false);
+    fill(pending, reply(out));
     showRecord(out, payload);
-  } catch (e) { mapError(e.code, e.message); showError(e.message); }
+  } catch (e) { mapError(e.code, e.message); showError(e.message); fill(pending, [e.message], "err"); }
   finally { $("send").disabled = false; }
 }
 
@@ -595,6 +621,7 @@ async function replay() {
 for (const b of $("mode").querySelectorAll("button")) b.addEventListener("click", () => setMode(b.dataset.mode));
 for (const b of document.querySelectorAll("[data-preset]")) b.addEventListener("click", () => PRESETS[b.dataset.preset]());
 $("send").addEventListener("click", send);
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 $("start").addEventListener("click", replay);
 $("stop").addEventListener("click", () => { state.running = false; });
 const sparks = $("sparks");
@@ -603,7 +630,7 @@ for (let i = 0; i < 14; i++) {     // fixed positions: the page looks the same e
   s.style.left = (8 + (i * 61) % 84) + "%"; s.style.top = (40 + (i * 37) % 260) + "px"; s.style.animationDelay = (i * 0.37) + "s";
   sparks.append(s);
 }
-setMode("balanced"); PRESETS.easy(); mapReset();
+setMode("balanced"); mapReset();
 fetch("/demo/samples").then((r) => r.json()).then((d) => { state.labels = d.labels; state.items = d.items; })
   .catch(() => showError("Could not load the demo questions from /demo/samples."));
 </script>
