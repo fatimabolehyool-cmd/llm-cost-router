@@ -52,6 +52,11 @@
   input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.25); }
   button:focus-visible, select:focus-visible, input[type=checkbox]:focus-visible { outline: 2px solid #9cc0ff; outline-offset: 2px; }
   ::placeholder { color: var(--muted); opacity: 1; }
+  .keywrap { display: grid; justify-items: end; gap: 4px; }
+  .keyerr { margin: 0; color: var(--red); font-size: 12.5px; font-weight: 600; }
+  .key input[aria-invalid=true] { border-color: var(--red); box-shadow: 0 0 0 3px rgba(255, 107, 129, 0.25); }
+  .settings .seg { margin-top: 0; }
+  .emptyrow td { color: var(--muted); text-align: center; padding: 22px 10px; }
   .key input { width: 210px; border-radius: 999px; background: rgba(6, 16, 44, 0.92); }
   header { z-index: 2; }
 
@@ -201,6 +206,7 @@
   @media (max-width: 640px) {
     header { flex-wrap: wrap; padding: 14px 18px; gap: 10px; }
     .brand { white-space: nowrap; }
+    .keywrap { flex: 1 1 100%; justify-items: stretch; }
     .key { flex: 1 1 100%; }
     .key input { flex: 1; width: auto; min-width: 0; }
     main { padding: 18px 14px 14px; gap: 16px; }
@@ -241,7 +247,10 @@
     <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#8fb6ff"/></svg>
     Cost-aware Router
   </div>
-  <label class="key">Access key <input id="key" type="password" autocomplete="off" placeholder="router access key"></label>
+  <div class="keywrap">
+    <label class="key">Access key <input id="key" type="password" autocomplete="off" placeholder="router access key" aria-describedby="keyError"></label>
+    <p class="keyerr" id="keyError" role="alert" hidden>Enter the access key to send messages.</p>
+  </div>
 </header>
 
 <section class="hero" aria-labelledby="heroTitle">
@@ -264,6 +273,12 @@
         <button class="chip" data-preset="impatient">Hurry and refund me, I am waiting</button>
       </div>
       <textarea id="q" aria-label="Your message" placeholder="Type your message…"></textarea>
+      <button class="go" id="send">Send</button>
+    </section>
+
+    <section class="card settings" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle">Router settings</h2>
+      <p class="cardsub">Set by your company, not by the customer.</p>
       <p class="block" id="modeLabel">Mode</p>
       <div class="seg" id="mode" role="group" aria-labelledby="modeLabel" aria-describedby="modeHint">
         <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
@@ -272,7 +287,6 @@
       </div>
       <p class="hint" id="modeHint"></p>
       <label class="toggle"><input type="checkbox" id="sensitive"> Mark as sensitive</label>
-      <button class="go" id="send">Send</button>
     </section>
   </div>
 
@@ -366,7 +380,7 @@
     <div class="scrollx" tabindex="0" role="region" aria-label="Live test results, scrolls sideways on small screens">
     <table>
       <thead><tr><th>#</th><th>Question</th><th>Route</th><th>Answer</th><th>Correct</th><th class="num">Cost</th><th class="num">Latency</th></tr></thead>
-      <tbody id="log"></tbody>
+      <tbody id="log"><tr class="emptyrow"><td colspan="7">No results yet. Press Start test to send saved questions through the router.</td></tr></tbody>
     </table>
     </div>
   </section>
@@ -531,12 +545,17 @@ function body(question, options, sensitive) {
   return { question, options: options.length ? options : state.labels, mode: state.mode, sensitive };
 }
 class ApiError extends Error { constructor(code, message) { super(message); this.code = code; } }
+function keyProblem(on) {   // the error is shown at the key field, not only in the chat
+  const k = $("key"); k.setAttribute("aria-invalid", String(on)); $("keyError").hidden = !on;
+  if (on) k.focus();
+}
 async function call(payload) {
+  if (!$("key").value) { keyProblem(true); throw new ApiError("unauthorized", "Enter the access key at the top right."); }
   const r = await fetch("/v1/answer", { method: "POST", headers: { "Content-Type": "application/json", "X-API-Key": $("key").value }, body: JSON.stringify(payload) });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
     const err = (data && data.error) || {};
-    if (r.status === 401) throw new ApiError("unauthorized", "Enter the access key at the top right.");
+    if (r.status === 401) { keyProblem(true); throw new ApiError("unauthorized", "That access key was not accepted."); }
     throw new ApiError(err.code || String(r.status), `${r.status} ${err.code || ""}: ${err.message || "request failed"}`);
   }
   return data;
@@ -544,8 +563,9 @@ async function call(payload) {
 function answerText(out, payload) {
   if (out.answer === null || out.answer === undefined) return "No answer · abstained";
   if (out.task_type === "choice") { const i = "ABCD".indexOf(out.answer); return i >= 0 ? `${out.answer} · ${payload.options[i]}` : out.answer; }
-  return out.answer;
+  return cap(pretty(out.answer));
 }
+function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
 function showRecord(out, payload) {
   const box = $("record"); box.replaceChildren();
   const wrap = el("div", undefined, "fade");
@@ -633,7 +653,7 @@ function logRow(i, item, out, err) {
   if (err) { tr.append(el("td", err, "error"), el("td", ""), el("td", ""), el("td", "", "num"), el("td", "", "num")); }
   else {
     const right = out.status === "answered" ? out.answer === item.gold : null;
-    tr.append(el("td", (WHY[out.reason] || [0, 0, out.reason])[2]), el("td", out.answer || "–"),
+    tr.append(el("td", (WHY[out.reason] || [0, 0, out.reason])[2]), el("td", out.answer ? (out.task_type === "label" ? pretty(out.answer) : out.answer) : "–"),
       el("td", right === null ? "–" : right ? "yes" : "no", right === null ? "" : right ? "yes" : "no"),
       el("td", "$" + out.cost_usd.toFixed(4), "num"), el("td", (out.latency_ms / 1000).toFixed(1) + " s", "num"));
   }
@@ -670,6 +690,7 @@ async function replay() {
 for (const b of $("mode").querySelectorAll("button")) b.addEventListener("click", () => setMode(b.dataset.mode));
 for (const b of document.querySelectorAll("[data-preset]")) b.addEventListener("click", () => PRESETS[b.dataset.preset]());
 $("send").addEventListener("click", send);
+$("key").addEventListener("input", () => keyProblem(false));
 $("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 $("start").addEventListener("click", replay);
 $("stop").addEventListener("click", () => { state.running = false; });
