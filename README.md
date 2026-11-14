@@ -68,7 +68,7 @@ cd llm-cost-router
 make venv          # host virtual environment (tests and scripts)
 make env           # .env from .env.example, with local values (git-ignored)
 make admin-key     # admin key for policy reload, written to .env (never printed)
-make lint cov      # lint, 220 unit tests, coverage (fails below 80%)
+make lint cov      # lint, 229 unit tests, coverage (fails below 80%)
 make e2e           # builds the images, starts router + PostgreSQL + MOCK models, 11 workflow tests
 make p1            # load test on the MOCK stack: router overhead and success at 1-4 concurrent
 ```
@@ -114,7 +114,7 @@ both switches, and checks that the router never restarted (`results/lifecycle_de
 | Command | What it proves | Needs |
 |---|---|---|
 | `make lint` | ruff lint and format, as in CI | – |
-| `make cov` | 220 unit tests (routing rules, normalizer, privacy, adapters, policy, admin, metrics, shadow) and coverage ≥ 80% | – |
+| `make cov` | 229 unit tests (routing rules, normalizer, privacy, adapters, policy, admin, metrics, shadow) and coverage ≥ 80% | – |
 | `make test-integration` | 8 tests against a throwaway PostgreSQL 16: migrations, concurrent spend reservation, retention, feedback | Docker |
 | `make e2e` | 11 end-to-end workflows on the Compose stack: every mode, feedback round trip, sensitive data never leaves or is stored in clear, junior/senior/input failures | Docker |
 | `make s1` | S1: the stack starts, serves all modes, survives a database outage, recovers | Docker |
