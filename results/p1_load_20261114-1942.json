@@ -1,0 +1,66 @@
+[
+ {
+  "scenario": "agree",
+  "concurrency": 1,
+  "n": 100,
+  "success": 1.0,
+  "throughput_rps": 1.9490348770330834,
+  "client_p50_ms": 512.8877710085362,
+  "client_p95_ms": 517.2978731861804,
+  "router_p95_ms": 512.0,
+  "overhead_p50_ms": 8.0,
+  "overhead_p95_ms": 12.0,
+  "overhead_max_ms": 12.0,
+  "codes": {
+   "200": 100
+  }
+ },
+ {
+  "scenario": "agree",
+  "concurrency": 2,
+  "n": 100,
+  "success": 1.0,
+  "throughput_rps": 3.8855540115294804,
+  "client_p50_ms": 514.5056879846379,
+  "client_p95_ms": 519.4820517324843,
+  "router_p95_ms": 513.0,
+  "overhead_p50_ms": 8.0,
+  "overhead_p95_ms": 13.0,
+  "overhead_max_ms": 14.0,
+  "codes": {
+   "200": 100
+  }
+ },
+ {
+  "scenario": "agree",
+  "concurrency": 4,
+  "n": 200,
+  "success": 1.0,
+  "throughput_rps": 7.729725571857575,
+  "client_p50_ms": 517.9200420097914,
+  "client_p95_ms": 522.1129680925515,
+  "router_p95_ms": 513.05,
+  "overhead_p50_ms": 10.0,
+  "overhead_p95_ms": 13.050000000000011,
+  "overhead_max_ms": 16.0,
+  "codes": {
+   "200": 200
+  }
+ },
+ {
+  "scenario": "disagree",
+  "concurrency": 4,
+  "n": 60,
+  "success": 1.0,
+  "throughput_rps": 7.639211580428846,
+  "client_p50_ms": 523.057937505655,
+  "client_p95_ms": 529.1486226080451,
+  "router_p95_ms": 521.0,
+  "overhead_p50_ms": 16.0,
+  "overhead_p95_ms": 21.0,
+  "overhead_max_ms": 22.0,
+  "codes": {
+   "200": 60
+  }
+ }
+]

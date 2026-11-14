@@ -8,7 +8,7 @@ MODELS_MID ?= gemma3:12b llama3.1:8b qwen2.5:7b phi4:14b
 DOCKER_UP = @docker info >/dev/null 2>&1 || { echo "Docker is not running. Start Docker Desktop and wait until it shows 'Engine running'."; exit 1; }
 OLLAMA_UP = @curl -sf http://localhost:11434/api/version >/dev/null || { echo "Ollama is not reachable on localhost:11434. Start it with 'ollama serve' or the Ollama app."; exit 1; }
 
-.PHONY: venv test lint format cov audit test-integration backup restore-test retention monitoring-up eval-seniors eval-report train registry promote rollback real-up real-ask real-down senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 down
+.PHONY: venv test lint format cov audit test-integration backup restore-test retention monitoring-up eval-seniors eval-report train registry promote rollback real-up real-ask real-down senior-smoke e4 replay-prepare replay-juniors replay-assemble e3 pull data exp1-screen exp1-rescore pull-mid exp1-screen-mid exp1-load exp2-build exp2-train exp2-up exp2-bench exp2-stats exp2-down env s1 s2 s3 p1 category-report down
 
 venv:            ## create the host virtual environment
 	python3 -m venv .venv && .venv/bin/pip install -q -r requirements-host.txt -r requirements-dev.txt
@@ -231,6 +231,14 @@ e2e: env         ## end-to-end tests on the Compose stack with MOCK models (no O
 	AUDIT_RATE=0 BREAKER_COOLDOWN_S=0 $(COMPOSE) up -d --wait --build postgres mock-models router
 	E2E_ROUTER_URL=http://localhost:8000 $(PY) -m pytest -m e2e -p no:cacheprovider; status=$$?; \
 		$(COMPOSE) up -d --wait router; exit $$status
+
+p1: env          ## P1: load test on the MOCK stack: router overhead, success, throughput (no API cost)
+	$(DOCKER_UP)
+	AUDIT_RATE=0 $(COMPOSE) up -d --wait --build postgres mock-models router
+	$(PY) smoke/p1_load.py; status=$$?; $(COMPOSE) up -d --wait router; exit $$status
+
+category-report: ## FR-17: per-category quality report (release split) and its effect on the test split
+	$(PY) -m pipelines.category_report
 
 s3: env          ## S3: canary test, sensitive data never leaves (breaker cooldown 0, every answer audited)
 	$(DOCKER_UP)

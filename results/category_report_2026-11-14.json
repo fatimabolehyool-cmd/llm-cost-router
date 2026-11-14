@@ -1,0 +1,467 @@
+{
+ "bar": 0.25,
+ "min_agreed": 8,
+ "always_escalate": [
+  "exchange_rate",
+  "transfer_fee_charged",
+  "transfer_not_received_by_recipient",
+  "transfer_timing",
+  "verify_my_identity"
+ ],
+ "categories": {
+  "extra_charge_on_statement": {
+   "agreed": 8,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3244156195108769
+  },
+  "pending_cash_withdrawal": {
+   "agreed": 4,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.48990002040399916
+  },
+  "top_up_limits": {
+   "agreed": 13,
+   "wrong": 2,
+   "fa": 0.15384615384615385,
+   "fa_upper95": 0.4223517050863101
+  },
+  "card_not_working": {
+   "agreed": 9,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.2991527535509594
+  },
+  "exchange_via_app": {
+   "agreed": 2,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.6576280471103807
+  },
+  "lost_or_stolen_card": {
+   "agreed": 8,
+   "wrong": 1,
+   "fa": 0.125,
+   "fa_upper95": 0.4708948057698615
+  },
+  "age_limit": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "contactless_not_working": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "receiving_money": {
+   "agreed": 6,
+   "wrong": 4,
+   "fa": 0.6666666666666666,
+   "fa_upper95": 0.9032306674407831
+  },
+  "pending_top_up": {
+   "agreed": 6,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3903430336530645
+  },
+  "cancel_transfer": {
+   "agreed": 7,
+   "wrong": 2,
+   "fa": 0.2857142857142857,
+   "fa_upper95": 0.6410709098517873
+  },
+  "reverted_card_payment?": {
+   "agreed": 6,
+   "wrong": 2,
+   "fa": 0.3333333333333333,
+   "fa_upper95": 0.7000116786584712
+  },
+  "cash_withdrawal_not_recognised": {
+   "agreed": 6,
+   "wrong": 3,
+   "fa": 0.5,
+   "fa_upper95": 0.8123871931005913
+  },
+  "wrong_amount_of_cash_received": {
+   "agreed": 6,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3903430336530645
+  },
+  "card_payment_fee_charged": {
+   "agreed": 4,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.48990002040399916
+  },
+  "transfer_not_received_by_recipient": {
+   "agreed": 8,
+   "wrong": 5,
+   "fa": 0.625,
+   "fa_upper95": 0.863158240538479
+  },
+  "supported_cards_and_currencies": {
+   "agreed": 5,
+   "wrong": 2,
+   "fa": 0.4,
+   "fa_upper95": 0.769280067791163
+  },
+  "getting_virtual_card": {
+   "agreed": 5,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.43449149475208104
+  },
+  "card_acceptance": {
+   "agreed": 6,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3903430336530645
+  },
+  "top_up_reverted": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "balance_not_updated_after_bank_transfer": {
+   "agreed": 4,
+   "wrong": 3,
+   "fa": 0.75,
+   "fa_upper95": 0.9544139373553637
+  },
+  "balance_not_updated_after_cheque_or_cash_deposit": {
+   "agreed": 9,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.2991527535509594
+  },
+  "card_payment_not_recognised": {
+   "agreed": 4,
+   "wrong": 2,
+   "fa": 0.5,
+   "fa_upper95": 0.8499642911798285
+  },
+  "compromised_card": {
+   "agreed": 4,
+   "wrong": 1,
+   "fa": 0.25,
+   "fa_upper95": 0.6993639475573634
+  },
+  "edit_personal_details": {
+   "agreed": 11,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.2588400172488141
+  },
+  "verify_my_identity": {
+   "agreed": 8,
+   "wrong": 4,
+   "fa": 0.5,
+   "fa_upper95": 0.7847874731755582
+  },
+  "visa_or_mastercard": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "disposable_card_limits": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "atm_support": {
+   "agreed": 2,
+   "wrong": 1,
+   "fa": 0.5,
+   "fa_upper95": 0.9054713451991339
+  },
+  "direct_debit_payment_not_recognised": {
+   "agreed": 5,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.43449149475208104
+  },
+  "declined_cash_withdrawal": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "pending_card_payment": {
+   "agreed": 5,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.43449149475208104
+  },
+  "Refund_not_showing_up": {
+   "agreed": 5,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.43449149475208104
+  },
+  "terminate_account": {
+   "agreed": 4,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.48990002040399916
+  },
+  "card_swallowed": {
+   "agreed": 5,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.43449149475208104
+  },
+  "transaction_charged_twice": {
+   "agreed": 11,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.2588400172488141
+  },
+  "verify_source_of_funds": {
+   "agreed": 9,
+   "wrong": 1,
+   "fa": 0.1111111111111111,
+   "fa_upper95": 0.4350062147680601
+  },
+  "transfer_timing": {
+   "agreed": 17,
+   "wrong": 9,
+   "fa": 0.5294117647058824,
+   "fa_upper95": 0.738351988039119
+  },
+  "change_pin": {
+   "agreed": 6,
+   "wrong": 2,
+   "fa": 0.3333333333333333,
+   "fa_upper95": 0.7000116786584712
+  },
+  "declined_transfer": {
+   "agreed": 2,
+   "wrong": 2,
+   "fa": 1.0,
+   "fa_upper95": 1.0
+  },
+  "transfer_fee_charged": {
+   "agreed": 9,
+   "wrong": 3,
+   "fa": 0.3333333333333333,
+   "fa_upper95": 0.6458026525009102
+  },
+  "failed_transfer": {
+   "agreed": 1,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.7934567085261071
+  },
+  "transfer_into_account": {
+   "agreed": 6,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3903430336530645
+  },
+  "verify_top_up": {
+   "agreed": 9,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.2991527535509594
+  },
+  "getting_spare_card": {
+   "agreed": 6,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3903430336530645
+  },
+  "top_up_by_cash_or_cheque": {
+   "agreed": 6,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3903430336530645
+  },
+  "order_physical_card": {
+   "agreed": 2,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.6576280471103807
+  },
+  "card_delivery_estimate": {
+   "agreed": 6,
+   "wrong": 5,
+   "fa": 0.8333333333333334,
+   "fa_upper95": 0.9699474141282697
+  },
+  "virtual_card_not_working": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "get_disposable_virtual_card": {
+   "agreed": 4,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.48990002040399916
+  },
+  "top_up_failed": {
+   "agreed": 6,
+   "wrong": 2,
+   "fa": 0.3333333333333333,
+   "fa_upper95": 0.7000116786584712
+  },
+  "top_up_by_card_charge": {
+   "agreed": 4,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.48990002040399916
+  },
+  "top_up_by_bank_transfer_charge": {
+   "agreed": 3,
+   "wrong": 2,
+   "fa": 0.6666666666666666,
+   "fa_upper95": 0.9385096847238394
+  },
+  "activate_my_card": {
+   "agreed": 7,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.35433884297520657
+  },
+  "cash_withdrawal_charge": {
+   "agreed": 4,
+   "wrong": 1,
+   "fa": 0.25,
+   "fa_upper95": 0.6993639475573634
+  },
+  "card_about_to_expire": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "apple_pay_or_google_pay": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "country_support": {
+   "agreed": 8,
+   "wrong": 1,
+   "fa": 0.125,
+   "fa_upper95": 0.4708948057698615
+  },
+  "card_arrival": {
+   "agreed": 2,
+   "wrong": 1,
+   "fa": 0.5,
+   "fa_upper95": 0.9054713451991339
+  },
+  "exchange_rate": {
+   "agreed": 13,
+   "wrong": 7,
+   "fa": 0.5384615384615384,
+   "fa_upper95": 0.7679424569851186
+  },
+  "wrong_exchange_rate_for_cash_withdrawal": {
+   "agreed": 2,
+   "wrong": 1,
+   "fa": 0.5,
+   "fa_upper95": 0.9054713451991339
+  },
+  "fiat_currency_support": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "automatic_top_up": {
+   "agreed": 2,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.6576280471103807
+  },
+  "pin_blocked": {
+   "agreed": 3,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.5615060804490177
+  },
+  "passcode_forgotten": {
+   "agreed": 6,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3903430336530645
+  },
+  "lost_or_stolen_phone": {
+   "agreed": 6,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.3903430336530645
+  },
+  "request_refund": {
+   "agreed": 6,
+   "wrong": 1,
+   "fa": 0.16666666666666666,
+   "fa_upper95": 0.563509436563646
+  },
+  "declined_card_payment": {
+   "agreed": 4,
+   "wrong": 1,
+   "fa": 0.25,
+   "fa_upper95": 0.6993639475573634
+  },
+  "pending_transfer": {
+   "agreed": 4,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.48990002040399916
+  },
+  "beneficiary_not_allowed": {
+   "agreed": 4,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.48990002040399916
+  },
+  "get_physical_card": {
+   "agreed": 1,
+   "wrong": 1,
+   "fa": 1.0,
+   "fa_upper95": 1.0
+  },
+  "exchange_charge": {
+   "agreed": 4,
+   "wrong": 0,
+   "fa": 0.0,
+   "fa_upper95": 0.48990002040399916
+  }
+ },
+ "test_effect": {
+  "rule_v0": {
+   "n": 689,
+   "accuracy": 0.8635703918722787,
+   "accuracy_ci95": [
+    0.8359162196562454,
+    0.8871927853457638
+   ],
+   "escalation": 0.274310595065312,
+   "cost_per_1000": 0.9047547169811321
+  },
+  "rule_v0_with_list": {
+   "n": 689,
+   "accuracy": 0.8751814223512336,
+   "accuracy_ci95": [
+    0.8484024764697207,
+    0.8977998300892387
+   ],
+   "escalation": 0.32946298984034833,
+   "cost_per_1000": 1.138618287373005
+  }
+ }
+}
