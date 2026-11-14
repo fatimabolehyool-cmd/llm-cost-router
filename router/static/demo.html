@@ -8,10 +8,10 @@
   :root {
     --bg: #030816; --bg2: #061233; --ink: #e8efff; --muted: #8fa3c7; --dim: #7387ad;
     --line: rgba(120, 160, 255, 0.16); --glass: rgba(14, 30, 72, 0.38); --glass-edge: rgba(130, 170, 255, 0.20);
-    --blue: #4f8cff; --cyan: #5cc8ff; --violet: #a98bff; --teal: #2fe0c2; --amber: #ffc857; --red: #ff6b81;
+    --blue: #4f8cff; --cyan: #5cc8ff; --orange: #ffa25f; --teal: #2fe0c2; --amber: #ffc857; --red: #ff6b81;
     /* semantic colours: what a colour means, not which colour it is */
     --ink-soft: #cdd9f5; --ring: #9cc0ff; --surface-in: rgba(8, 20, 52, 0.65); --surface-raise: rgba(20, 40, 95, 0.45);
-    --route-local: #7fb0ff; --route-paid: var(--violet); --route-inhouse: var(--teal); --warn: var(--amber); --danger: var(--red);
+    --route-local: #7fb0ff; --route-paid: var(--orange); --route-inhouse: var(--teal); --warn: var(--amber); --danger: var(--red);
     --grad-primary: linear-gradient(180deg, #5b97ff, #3d6ff0);
     --glow-primary: 0 0 22px rgba(79, 140, 255, 0.45);
     /* type scale: six steps instead of nine one-off sizes */
@@ -43,9 +43,6 @@
     mask-image: linear-gradient(90deg, transparent 30%, #000 44%, #000 56%, transparent 70%);
   }
   @keyframes breathe { 50% { opacity: 0.72; } }
-  .spark { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #bcd2ff;
-    box-shadow: 0 0 8px #8fb4ff; opacity: 0; animation: twinkle 5s ease-in-out infinite; pointer-events: none; }
-  @keyframes twinkle { 0%, 100% { opacity: 0; transform: translateY(0); } 40% { opacity: 0.9; } 80% { opacity: 0; transform: translateY(-18px); } }
 
   header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px;
     padding: 18px 36px; max-width: 1360px; margin: 0 auto; }
@@ -74,7 +71,7 @@
   .live { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); animation: blink 1.6s infinite; }
   @keyframes blink { 50% { opacity: 0.35; } }
   h1 { margin: 16px 0 8px; font-size: clamp(30px, 4.2vw, 50px); line-height: 1.08; letter-spacing: -0.025em; font-weight: 750; }
-  h1 .grad { background: linear-gradient(90deg, #8fb6ff, #c3b5ff 55%, #7fe3ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  h1 .grad { background: linear-gradient(90deg, #8fb6ff, #6fdcff 55%, #5ef0d0); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .sub { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: var(--fs-lg); }
 
   main { position: relative; display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 22px;
@@ -196,7 +193,7 @@
   .track { height: 14px; border-radius: 999px; background: rgba(8, 20, 52, 0.7); border: 1px solid var(--glass-edge); overflow: hidden; }
   .bar { height: 100%; width: 0; border-radius: 999px; transition: width .6s cubic-bezier(.3, .8, .3, 1); }
   .bar.router { background: linear-gradient(90deg, #3d6ff0, #5cc8ff); }
-  .bar.opus { background: linear-gradient(90deg, #6b54d6, #a98bff); }
+  .bar.opus { background: linear-gradient(90deg, #c8642e, #ffa25f); }
   .lane .v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
   table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(130, 170, 255, 0.10); vertical-align: top; }
@@ -244,14 +241,106 @@
     .rhead { gap: 10px; }
   }
   @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+
+  /* ================= redesign layer (tasteskill: software kind, sharp radius, product-led hero) ================= */
+  :root { --r-lg: 12px; --r-md: 8px; --wrap: 1240px; --pad: 32px; }
+  .wrap { width: 100%; max-width: var(--wrap); margin-inline: auto; padding-inline: var(--pad); }
+  .skip { position: absolute; left: 12px; top: -48px; z-index: 10; padding: 10px 14px; border-radius: var(--r-md); background: var(--blue); color: #fff; text-decoration: none; }
+  .skip:focus { top: 12px; }
+  header.wrap { padding-block: 18px; }
+  main { display: block; max-width: none; margin: 0; padding: 0; }
+  .card { border-radius: var(--r-lg); }
+  .card h3 { margin: 0 0 14px; font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  button, input[type=password], input[type=text], textarea, select { border-radius: var(--r-md); }
+  .seg { border-radius: 10px; } .seg button { border-radius: 7px; }
+  .msg { border-radius: 10px; } .msg.me { border-bottom-right-radius: 3px; } .msg.bot { border-bottom-left-radius: 3px; }
+  .chip { border-radius: var(--r-md); }
+  .tile { border-radius: 10px; }
+  button:hover:not(:disabled) { transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+
+  /* hero: the copy on the left, the product itself on the right */
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 540px); gap: 56px; align-items: center;
+    text-align: left; padding-block: 40px 72px; min-height: min(calc(100vh - 80px), 820px); }
+  .kicker { display: inline-flex; align-items: center; gap: 10px; margin: 0 0 18px; font-size: var(--fs-sm); font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: #bcd0ff; }
+  .live { animation-duration: 2.4s; }
+  h1 { margin: 0 0 18px; font-size: clamp(36px, 4.6vw, 62px); line-height: 1.04; letter-spacing: -0.03em; }
+  .sub { margin: 0; max-width: 520px; font-size: 18px; line-height: 1.55; }
+  .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 32px 0 22px; max-width: 540px;
+    border-top: 1px solid var(--line); }
+  .facts div { padding: 16px 16px 0 0; }
+  .facts div + div { padding-left: 16px; border-left: 1px solid var(--line); }
+  .facts dt { font-size: 34px; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .facts dd { margin: 4px 0 0; color: var(--muted); font-size: var(--fs-sm); line-height: 1.35; }
+  .models { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+
+  .app-frame { position: relative; border-radius: 16px; overflow: hidden; background: rgba(9, 20, 52, 0.78);
+    border: 1px solid rgba(130, 170, 255, 0.24); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 40px 100px rgba(0, 6, 30, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.02) inset, 0 0 60px rgba(79, 140, 255, 0.12); }
+  .frame-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px;
+    border-bottom: 1px solid var(--line); background: rgba(14, 30, 72, 0.55); }
+  .frame-title { font-weight: 650; font-size: var(--fs-base); }
+  .frame-live { font-size: var(--fs-xs); color: var(--teal); font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
+  .frame-body { padding: 16px 18px 18px; }
+  .app-frame .chat { min-height: 220px; max-height: 320px; }
+  .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+  .composer textarea { min-height: 52px; height: 52px; }
+  .composer .go { width: auto; margin: 0; padding: 0 22px; height: 52px; }
+  .frame-settings { padding: 14px 18px 16px; border-top: 1px solid var(--line); background: rgba(6, 14, 38, 0.55); }
+  .settings-title { margin: 0 0 10px; font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .settings-title span { text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+  .settings-row .block { margin: 0; }
+  .settings-row .seg { flex: 1 1 260px; }
+  .settings-row .toggle { margin: 0; }
+  .frame-settings .hint { margin-top: 8px; }
+
+  /* sections below the hero */
+  .band { padding-block: 72px 24px; }
+  .sec { margin: 0 0 10px; font-size: clamp(26px, 2.6vw, 34px); letter-spacing: -0.02em; font-weight: 700; }
+  .lede { margin: 0 0 28px; max-width: 680px; color: var(--muted); font-size: var(--fs-lg); line-height: 1.55; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .split #record > .fade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 40px; align-items: start; }
+  .split #record > .fade > dl { grid-column: 2; grid-row: 1 / span 4; }
+  .split #record > .fade > .badge { justify-self: start; }
+  .seg button { white-space: nowrap; }
+  .settings-row .seg { flex: 1 1 300px; }
+  footer.wrap { padding-block: 40px 36px; }
+
+  /* the hero enters once on load */
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+  [data-enter] .hero-copy > * { animation: rise .8s cubic-bezier(.2, .7, .2, 1) both; }
+  [data-enter] .hero-copy > :nth-child(2) { animation-delay: .08s; }
+  [data-enter] .hero-copy > :nth-child(3) { animation-delay: .16s; }
+  [data-enter] .hero-copy > :nth-child(4) { animation-delay: .24s; }
+  [data-enter] .hero-copy > :nth-child(5) { animation-delay: .32s; }
+  [data-enter] .app-frame { animation: rise 1s cubic-bezier(.2, .7, .2, 1) .2s both; }
+
+  @media (max-width: 1080px) {
+    .hero { grid-template-columns: minmax(0, 1fr); gap: 36px; min-height: 0; padding-block: 28px 40px; }
+    .split #record > .fade { grid-template-columns: minmax(0, 1fr); }
+    .split #record > .fade > dl { grid-column: auto; grid-row: auto; margin-top: 8px; }
+  }
+  @media (max-width: 640px) {
+    :root { --pad: 16px; }
+    .hero { padding-block: 16px 28px; gap: 28px; }
+    .sub { font-size: var(--fs-lg); }
+    .facts dt { font-size: 26px; }
+    .band { padding-block: 44px 8px; }
+    .frame-body, .frame-settings { padding-inline: 14px; }
+    .composer .go { padding: 0 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { [data-enter] .hero-copy > *, [data-enter] .app-frame { animation: none !important; } }
 </style>
 </head>
 <body>
-<div class="sky" aria-hidden="true"><div class="halo"></div><div id="sparks"></div></div>
+<a class="skip" href="#chatpanel">Skip to the chat</a>
+<div class="sky" aria-hidden="true"><div class="halo"></div></div>
 
-<header>
+<header class="wrap">
   <div class="brand">
-    <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#8fb6ff"/></svg>
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#8fb6ff"/></svg>
     Cost-aware Router
   </div>
   <div class="keywrap">
@@ -260,52 +349,65 @@
   </div>
 </header>
 
-<section class="hero" aria-labelledby="heroTitle">
-  <span class="pill"><span class="live"></span>Live · in-house models gemma3:12b + phi4:14b · Claude Opus 5.5</span>
-  <h1 id="heroTitle">Ask once. <span class="grad">Pay only when it matters.</span></h1>
-  <p class="sub">Two in-house models answer first. Claude Opus is called only when their answer can't be trusted, and personal data never leaves your company.</p>
-</section>
-
 <main>
-  <div class="stack">
-    <section class="card">
-      <h2>Help-desk chat</h2>
-      <div class="chat" id="chat" aria-live="polite">
-        <div class="msg bot">Hi! Tell me what you need help with.</div>
-      </div>
-      <div class="chips" aria-label="Suggested messages">
-        <button class="chip" data-preset="simple">My card expires soon</button>
-        <button class="chip" data-preset="tricky">When will I get my new card?</button>
-        <button class="chip" data-preset="sensitive">My card 4111… was charged twice</button>
-        <button class="chip" data-preset="impatient">Hurry and refund me, I am waiting</button>
-      </div>
-      <textarea id="q" aria-label="Your message" placeholder="Type your message…"></textarea>
-      <button class="go" id="send">Send</button>
-    </section>
+  <section class="hero wrap" aria-labelledby="heroTitle" data-enter>
+    <div class="hero-copy">
+      <p class="kicker"><span class="live"></span>AI help-desk router for banks</p>
+      <h1 id="heroTitle">Ask once. <span class="grad">Pay only when it matters.</span></h1>
+      <p class="sub">Two in-house models answer first. Claude Opus is called only when their answer can't be trusted, and personal data never leaves your company.</p>
+      <dl class="facts">
+        <div><dt>66%</dt><dd>cheaper than Opus alone</dd></div>
+        <div><dt>94%</dt><dd>of Opus's accuracy</dd></div>
+        <div><dt>0</dt><dd>personal-data leaks in 252 tests</dd></div>
+      </dl>
+      <p class="models">Running now: gemma3:12b and phi4:14b in-house, Claude Opus 5.5 when needed</p>
+    </div>
 
-    <section class="card settings" aria-labelledby="settingsTitle">
-      <h2 id="settingsTitle">Router settings</h2>
-      <p class="cardsub">Set by your company, not by the customer.</p>
-      <p class="block" id="modeLabel">Mode</p>
-      <div class="seg" id="mode" role="group" aria-labelledby="modeLabel" aria-describedby="modeHint">
-        <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
-        <button data-mode="balanced" aria-pressed="true">Balanced</button>
-        <button data-mode="best_quality" aria-pressed="false">Best quality</button>
+    <div class="app-frame" id="chatpanel">
+      <div class="frame-bar"><span class="frame-title">Help-desk chat</span><span class="frame-live">Live</span></div>
+      <div class="frame-body">
+        <div class="chat" id="chat" aria-live="polite">
+          <div class="msg bot">Hi! Tell me what you need help with.</div>
+        </div>
+        <div class="chips" aria-label="Suggested messages">
+          <button class="chip" data-preset="simple">My card expires soon</button>
+          <button class="chip" data-preset="tricky">When will I get my new card?</button>
+          <button class="chip" data-preset="sensitive">My card 4111… was charged twice</button>
+          <button class="chip" data-preset="impatient">Hurry and refund me, I am waiting</button>
+        </div>
+        <div class="composer">
+          <textarea id="q" aria-label="Your message" placeholder="Type your message…"></textarea>
+          <button class="go" id="send">Send</button>
+        </div>
       </div>
-      <p class="hint" id="modeHint"></p>
-      <label class="toggle"><input type="checkbox" id="sensitive"> Mark as sensitive</label>
-    </section>
-  </div>
+      <div class="frame-settings" aria-labelledby="settingsTitle">
+        <p class="settings-title" id="settingsTitle">Router settings <span>· set by your company</span></p>
+        <div class="settings-row">
+          <span class="block" id="modeLabel">Mode</span>
+          <div class="seg" id="mode" role="group" aria-labelledby="modeLabel" aria-describedby="modeHint">
+            <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
+            <button data-mode="balanced" aria-pressed="true">Balanced</button>
+            <button data-mode="best_quality" aria-pressed="false">Best quality</button>
+          </div>
+          <label class="toggle"><input type="checkbox" id="sensitive"> Mark as sensitive</label>
+        </div>
+        <p class="hint" id="modeHint"></p>
+      </div>
+    </div>
+  </section>
 
-  <div class="stack">
-    <section class="card mapcard">
-      <div class="maphead"><h2>How the router decides</h2><div class="status" id="status" role="status" aria-live="polite">Ready</div></div>
-      <div class="scrollx" id="mapscroll" tabindex="0" role="region" aria-label="Routing map, scrolls sideways on small screens">
+  <section class="band wrap" aria-labelledby="behindTitle">
+    <h2 class="sec" id="behindTitle">Behind the scenes</h2>
+    <p class="lede">Every message takes one of three routes. The lit path is the one yours took, and the record is kept for audit.</p>
+    <div class="split">
+      <div class="card mapcard">
+        <div class="maphead"><h3>How the router decided</h3><div class="status" id="status" role="status" aria-live="polite">Ready</div></div>
+        <div class="scrollx" id="mapscroll" tabindex="0" role="region" aria-label="Routing map, scrolls sideways on small screens">
       <svg class="map" id="map" viewBox="0 50 900 300" role="img" aria-label="Live map of the routing decision">
         <defs>
           <filter id="glow" filterUnits="userSpaceOnUse" x="-20" y="0" width="940" height="420"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
           <radialGradient id="orbfill" cx="50%" cy="45%" r="60%"><stop offset="0%" stop-color="#9cc0ff" stop-opacity="0.95"/><stop offset="45%" stop-color="#3f73ff" stop-opacity="0.55"/><stop offset="100%" stop-color="#0a1a4a" stop-opacity="0"/></radialGradient>
-          <linearGradient id="ringgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5cc8ff"/><stop offset="100%" stop-color="#a98bff"/></linearGradient>
+          <linearGradient id="ringgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5cc8ff"/><stop offset="100%" stop-color="#5ef0d0"/></linearGradient>
         </defs>
 
         <path id="w-qp" class="wire" d="M170 200H212"/>
@@ -319,16 +421,16 @@
         <path id="w-oK" class="wire" d="M694 200C718 200 714 314 738 314"/>
         <circle class="dot" id="dot" r="4.5"><animateMotion id="dotmove" dur="0.8s" begin="indefinite" fill="freeze" path="M0 0"/></circle>
 
-        <g class="node" id="n-q"><rect x="20" y="176" width="150" height="48" rx="24"/>
+        <g class="node" id="n-q"><rect x="20" y="176" width="150" height="48" rx="10"/>
           <circle class="icbg" cx="46" cy="200" r="14"/><circle class="ic" cx="46" cy="196" r="4"/><path class="ic" d="M38 207c2-4 14-4 16 0"/>
           <text x="68" y="198">Message</text><text class="s" x="68" y="213">from a customer</text></g>
-        <g class="node" id="n-p"><rect x="212" y="176" width="150" height="48" rx="24"/>
+        <g class="node" id="n-p"><rect x="212" y="176" width="150" height="48" rx="10"/>
           <circle class="icbg" cx="238" cy="200" r="14"/><path class="ic" d="M238 191l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/>
           <text x="260" y="198">Privacy</text><text class="s" x="260" y="213" id="t-p">personal data?</text></g>
-        <g class="node" id="n-j1"><rect x="404" y="104" width="150" height="48" rx="24"/>
+        <g class="node" id="n-j1"><rect x="404" y="104" width="150" height="48" rx="10"/>
           <circle class="icbg" cx="430" cy="128" r="14"/><rect class="ic" x="423" y="122" width="14" height="10" rx="2"/><path class="ic" d="M427 135h6"/>
           <text x="452" y="126">gemma3:12b</text><text class="s" x="452" y="141" id="t-j1">local model 1</text></g>
-        <g class="node" id="n-j2"><rect x="404" y="248" width="150" height="48" rx="24"/>
+        <g class="node" id="n-j2"><rect x="404" y="248" width="150" height="48" rx="10"/>
           <circle class="icbg" cx="430" cy="272" r="14"/><rect class="ic" x="423" y="266" width="14" height="10" rx="2"/><path class="ic" d="M427 279h6"/>
           <text x="452" y="270">phi4:14b</text><text class="s" x="452" y="285" id="t-j2">local model 2</text></g>
 
@@ -343,36 +445,37 @@
           <text class="orbsub" id="t-orbsub" x="640" y="226" text-anchor="middle">waiting</text>
         </g>
 
-        <g class="node" id="n-L" style="--nc: #4f8cff"><rect x="738" y="62" width="150" height="48" rx="24"/>
+        <g class="node" id="n-L" style="--nc: #4f8cff"><rect x="738" y="62" width="150" height="48" rx="10"/>
           <circle class="icbg" cx="764" cy="86" r="14"/><path class="ic" d="M757 86l5 5 9-10"/>
           <text x="786" y="84">Your company</text><text class="s" x="786" y="99" id="t-L">answered, free</text></g>
-        <g class="node" id="n-S" style="--nc: #a98bff"><rect x="738" y="176" width="150" height="48" rx="24"/>
+        <g class="node" id="n-S" style="--nc: #ffa25f"><rect x="738" y="176" width="150" height="48" rx="10"/>
           <circle class="icbg" cx="764" cy="200" r="14"/><path class="ic" d="M764 191l2.5 6 6 .5-4.5 4 1.5 6-5.5-3.5-5.5 3.5 1.5-6-4.5-4 6-.5z"/>
           <text x="786" y="198">Claude Opus</text><text class="s" x="786" y="213" id="t-S">paid, external</text>
           <g class="lock"><circle cx="884" cy="178" r="11" fill="#ff6b81"/><rect x="879" y="177" width="10" height="7.5" rx="1.5" fill="#fff"/><path d="M881.2 177v-2.4a2.8 2.8 0 0 1 5.6 0v2.4" fill="none" stroke="#fff" stroke-width="1.6"/></g></g>
-        <g class="node" id="n-K" style="--nc: #2fe0c2"><rect x="738" y="290" width="150" height="48" rx="24"/>
+        <g class="node" id="n-K" style="--nc: #2fe0c2"><rect x="738" y="290" width="150" height="48" rx="10"/>
           <circle class="icbg" cx="764" cy="314" r="14"/><path class="ic" d="M764 305l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/><path class="ic" d="M761 313l2 2 4-4"/>
           <text x="786" y="312">Kept in-house</text><text class="s" x="786" y="327" id="t-K">abstained safely</text></g>
       </svg>
+        </div>
+        <p class="swipe">Swipe sideways to see the whole route</p>
+        <div class="bannerrow"><div class="banner" id="banner">Personal data detected · nothing left your company</div></div>
       </div>
-      <p class="swipe">Swipe sideways to see the whole route</p>
-      <div class="bannerrow"><div class="banner" id="banner">Personal data detected · nothing left your company</div></div>
-    </section>
-
-    <section class="card">
-      <h2>Routing record</h2>
-      <p class="cardsub">The receipt for your last question, saved for audit.</p>
-      <div id="record"><p class="empty">Press Send and watch the map: the lit path is the route your question took.</p></div>
-    </section>
-  </div>
-
-  <section class="card wide">
-    <h2>Live test: router vs Opus-only</h2>
-    <div class="rhead">
-      <label>Questions <select id="count"><option>10</option><option selected>20</option><option>40</option></select></label>
-      <span class="grow">Runs saved questions with known answers through the router and keeps score: how many it got right, how often it paid for Opus, and what it spent next to sending every question to Opus. Uses the mode above.</span>
-      <button class="start" id="start">Start test</button><button id="stop" disabled>Stop</button>
+      <div class="card">
+        <h3>Routing record</h3>
+        <div id="record"><p class="empty">Send a message and its receipt appears here: who answered, why, and what it cost.</p></div>
+      </div>
     </div>
+  </section>
+
+  <section class="band wrap" aria-labelledby="testTitle">
+    <h2 class="sec" id="testTitle">Live test: router vs Opus-only</h2>
+    <p class="lede">Saved questions with known answers go through the router in the mode set above. It keeps score: how many it got right, how often it paid for Opus, and what it spent next to sending every question to Opus.</p>
+    <div class="card">
+      <div class="rhead">
+        <label>Questions <select id="count"><option>10</option><option selected>20</option><option>40</option></select></label>
+        <span class="grow"></span>
+        <button class="start" id="start">Start test</button><button id="stop" disabled>Stop</button>
+      </div>
     <div class="tiles">
       <div class="tile" id="tl-n"><b id="t-n">0</b><span>questions</span></div>
       <div class="tile" id="tl-acc"><b id="t-acc">–</b><span>correct (of answered)</span></div>
@@ -390,10 +493,11 @@
       <tbody id="log"><tr class="emptyrow"><td colspan="7">No results yet. Press Start test to send saved questions through the router.</td></tr></tbody>
     </table>
     </div>
+    </div>
   </section>
 </main>
-<footer>
-  Costs are the router's own accounting of real API usage. "Opus for every question" assumes $0.0027 per question, the mean measured in the held-out evaluation.
+<footer class="wrap">
+Costs are the router's own accounting of real API usage. "Opus for every question" assumes $0.0027 per question, the mean measured in the held-out evaluation.
   Test questions: MMLU (MIT licence) and Banking77 (CC BY 4.0). The access key you type is sent only to this router and is not stored.
 </footer>
 
@@ -436,7 +540,7 @@ function el(tag, text, cls) {
 // ---------------------------------------------------------------- the live map
 const WIRES = ["qp", "pj1", "pj2", "pby", "j1o", "j2o", "oL", "oS", "oK"];
 const NODES = ["q", "p", "j1", "j2", "L", "S", "K"];
-const COLOR = { L: "#4f8cff", S: "#a98bff", K: "#2fe0c2" };
+const COLOR = { L: "#4f8cff", S: "#ffa25f", K: "#2fe0c2" };
 function wire(id, cls, color) {
   const w = $("w-" + id);
   w.classList.remove("on", "flow", "off");
@@ -701,12 +805,6 @@ $("key").addEventListener("input", () => keyProblem(false));
 $("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 $("start").addEventListener("click", replay);
 $("stop").addEventListener("click", () => { state.running = false; });
-const sparks = $("sparks");
-for (let i = 0; i < 14; i++) {     // fixed positions: the page looks the same every time
-  const s = el("span", undefined, "spark");
-  s.style.left = (8 + (i * 61) % 84) + "%"; s.style.top = (40 + (i * 37) % 260) + "px"; s.style.animationDelay = (i * 0.37) + "s";
-  sparks.append(s);
-}
 setMode("balanced"); mapReset();
 fetch("/demo/samples").then((r) => r.json()).then((d) => { state.labels = d.labels; state.items = d.items; })
   .catch(() => showError("Could not load the demo questions from /demo/samples."));
