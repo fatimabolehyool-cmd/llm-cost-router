@@ -37,9 +37,9 @@ flowchart LR
   A["Anthropic API<br/>Claude Opus 5.5"]
   R -->|"I3 /api/chat, both in parallel"| O
   R -->|"I5 V2 inference, 60 ms, else rule-v0"| P
-  R -->|"async log, atomic spend reservation"| DB
+  R -->|"I6 SQL: async log, atomic spend reservation"| DB
   R -->|"I4 only via the egress gateway, never sensitive data"| A
-  AF -->|"I8 pipelines CLI"| ML
+  AF -->|"I9 pipelines CLI, I8 MLflow client"| ML
   ML -->|"I7 promote/rollback: export + MLServer load"| P
   AF -.->|"I7 /admin/policy/reload"| R
   PR -->|"I10 /metrics"| R

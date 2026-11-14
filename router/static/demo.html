@@ -3,164 +3,366 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cost-aware LLM router · demo</title>
+<title>Cost-aware LLM router · live demo</title>
 <style>
   :root {
-    --ink: #1d232b; --muted: #5c6670; --line: #dfe3e8; --panel: #ffffff; --bg: #f4f6f8;
-    --accent: #2457c5; --ok: #1f7a4d; --ok-bg: #e5f4ec; --warn: #9a5b00; --warn-bg: #fdf1dd;
-    --paid: #6b3fc0; --paid-bg: #efe8fb; --local: #0f6e76; --local-bg: #e0f2f3; --bad: #b42318;
+    --bg: #030816; --bg2: #061233; --ink: #e8efff; --muted: #8fa3c7; --dim: #4b5d82;
+    --line: rgba(120, 160, 255, 0.16); --glass: rgba(14, 30, 72, 0.38); --glass-edge: rgba(130, 170, 255, 0.20);
+    --blue: #4f8cff; --cyan: #5cc8ff; --violet: #a98bff; --teal: #2fe0c2; --amber: #ffc857; --red: #ff6b81;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
-  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
-           padding: 16px 28px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 19px; margin: 0; }
-  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-  header label { font-size: 13px; color: var(--muted); }
-  header input { width: 220px; margin-left: 6px; }
-  main { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(340px, 1fr); gap: 20px; padding: 20px 28px; max-width: 1280px; margin: 0 auto; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
-  section.wide { grid-column: 1 / -1; }
-  h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-  label.block { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 13px; }
-  textarea, input[type=text], input[type=password], select { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
-  textarea { width: 100%; min-height: 70px; resize: vertical; }
+  html, body { margin: 0; }
+  body {
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    color: var(--ink); min-height: 100vh; overflow-x: hidden;
+    background:
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(79, 140, 255, 0.28), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 10% 110%, rgba(40, 70, 200, 0.22), transparent 60%),
+      linear-gradient(180deg, var(--bg2), var(--bg) 55%);
+  }
+  body::before {            /* faint dot grid */
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: 0.35;
+    background-image: radial-gradient(rgba(140, 175, 255, 0.18) 1px, transparent 1px);
+    background-size: 26px 26px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 30%, transparent 80%);
+  }
+  .sky { position: absolute; inset: 0 0 auto 0; height: 900px; overflow: hidden; pointer-events: none; }
+  .halo {                   /* glowing horizon arc */
+    position: absolute; left: 50%; top: -778px; width: 2800px; height: 860px; margin-left: -1400px;
+    border-radius: 50%; border-bottom: 2px solid rgba(185, 210, 255, 0.85); pointer-events: none;
+    box-shadow: 0 38px 120px rgba(79, 140, 255, 0.45), 0 6px 26px rgba(150, 190, 255, 0.55);
+    animation: breathe 6s ease-in-out infinite;
+    -webkit-mask-image: linear-gradient(90deg, transparent 30%, #000 44%, #000 56%, transparent 70%);
+    mask-image: linear-gradient(90deg, transparent 30%, #000 44%, #000 56%, transparent 70%);
+  }
+  @keyframes breathe { 50% { opacity: 0.72; } }
+  .spark { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #bcd2ff;
+    box-shadow: 0 0 8px #8fb4ff; opacity: 0; animation: twinkle 5s ease-in-out infinite; pointer-events: none; }
+  @keyframes twinkle { 0%, 100% { opacity: 0; transform: translateY(0); } 40% { opacity: 0.9; } 80% { opacity: 0; transform: translateY(-18px); } }
+
+  header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 18px 36px; max-width: 1360px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.01em; }
+  .brand svg { filter: drop-shadow(0 0 8px rgba(110, 160, 255, 0.9)); }
+  .key { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  input[type=password], input[type=text], textarea, select {
+    font: inherit; color: var(--ink); background: rgba(8, 20, 52, 0.65); border: 1px solid var(--glass-edge);
+    border-radius: 12px; padding: 8px 12px; outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.25); }
+  .key input { width: 210px; border-radius: 999px; background: rgba(6, 16, 44, 0.92); }
+  header { z-index: 2; }
+
+  .hero { position: relative; text-align: center; padding: 26px 24px 8px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 13px;
+    color: #cfdcff; background: rgba(30, 55, 130, 0.35); border: 1px solid var(--glass-edge);
+    box-shadow: inset 0 0 18px rgba(79, 140, 255, 0.18); }
+  .live { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); animation: blink 1.6s infinite; }
+  @keyframes blink { 50% { opacity: 0.35; } }
+  h1 { margin: 16px 0 8px; font-size: clamp(30px, 4.2vw, 50px); line-height: 1.08; letter-spacing: -0.025em; font-weight: 750; }
+  h1 .grad { background: linear-gradient(90deg, #8fb6ff, #c3b5ff 55%, #7fe3ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 16px; }
+
+  main { position: relative; display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 22px;
+    max-width: 1360px; margin: 0 auto; padding: 26px 36px 18px; }
+  .card { position: relative; background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 22px;
+    padding: 20px 22px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 20px 60px rgba(0, 6, 30, 0.55), inset 0 1px 0 rgba(180, 205, 255, 0.10); }
+  .card h2 { margin: 0 0 14px; font-size: 12px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .wide { grid-column: 1 / -1; }
+  .stack { display: grid; gap: 22px; align-content: start; }
+
+  .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  button { font: inherit; color: var(--ink); cursor: pointer; border-radius: 12px; padding: 9px 12px;
+    background: rgba(20, 40, 95, 0.45); border: 1px solid var(--glass-edge); transition: transform .15s, border-color .2s, box-shadow .2s, background .2s; }
+  button:hover { border-color: rgba(140, 180, 255, 0.55); box-shadow: 0 0 18px rgba(79, 140, 255, 0.25); }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+  .preset { text-align: left; font-size: 13.5px; }
+  .preset small { display: block; color: var(--muted); font-size: 11.5px; }
+  label.block { display: block; margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  textarea { width: 100%; min-height: 74px; resize: vertical; }
   .options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .options input { width: 100%; }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  button:disabled { opacity: .5; cursor: default; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-  .seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
-  .seg button:last-child { border-right: 0; }
-  .seg button[aria-pressed=true] { background: var(--ink); color: #fff; }
-  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
-  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
-  .b-ok { background: var(--ok-bg); color: var(--ok); } .b-warn { background: var(--warn-bg); color: var(--warn); }
-  .b-paid { background: var(--paid-bg); color: var(--paid); } .b-local { background: var(--local-bg); color: var(--local); }
-  .answer { font-size: 22px; font-weight: 700; margin: 10px 0 4px; }
-  .why { margin: 4px 0 14px; }
-  dl { display: grid; grid-template-columns: max-content 1fr; gap: 5px 16px; margin: 0; font-size: 14px; }
+  .options input { width: 100%; padding: 7px 10px; font-size: 13.5px; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 14px;
+    background: rgba(6, 16, 44, 0.7); border: 1px solid var(--glass-edge); }
+  .seg button { border: 0; background: transparent; padding: 7px 8px; font-size: 13.5px; color: var(--muted); border-radius: 10px; }
+  .seg button[aria-pressed=true] { color: #fff; background: linear-gradient(180deg, rgba(79, 140, 255, 0.55), rgba(60, 100, 230, 0.45));
+    box-shadow: 0 0 16px rgba(79, 140, 255, 0.45); }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 7px 0 0; min-height: 18px; }
+  .toggle { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 14px; color: #cdd9f5; cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--teal); }
+  .go { width: 100%; margin-top: 16px; padding: 12px; font-weight: 650; font-size: 15px; border: 0; color: #fff;
+    background: linear-gradient(180deg, #5b97ff, #3d6ff0); box-shadow: 0 0 26px rgba(79, 140, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+  .go:hover { box-shadow: 0 0 36px rgba(79, 140, 255, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+
+  /* ---------- the live router map ---------- */
+  .mapcard { padding: 18px 18px 12px; overflow: hidden; }
+  .maphead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 0 6px; }
+  .status { font-size: 13px; color: var(--muted); }
+  .status b { color: var(--ink); font-weight: 600; }
+  svg.map { display: block; width: 100%; height: auto; }
+  .wire { fill: none; stroke: var(--line); stroke-width: 2; transition: stroke .35s, opacity .35s; }
+  .wire.on { stroke: var(--wc, var(--blue)); filter: url(#glow); }
+  .wire.flow { stroke: var(--wc, var(--blue)); stroke-dasharray: 3 11; stroke-linecap: round; animation: flow .7s linear infinite; filter: url(#glow); }
+  .wire.bypass { stroke-dasharray: 4 6; }
+  .wire.off { opacity: 0.25; }
+  @keyframes flow { to { stroke-dashoffset: -14; } }
+  .node rect { fill: rgba(10, 24, 62, 0.82); stroke: rgba(130, 170, 255, 0.32); stroke-width: 1.3; transition: stroke .3s, fill .3s; }
+  .node .ic { fill: none; stroke: #9fb9ff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: stroke .3s; }
+  .node .icbg { fill: rgba(79, 140, 255, 0.10); stroke: rgba(130, 170, 255, 0.35); }
+  .node text { fill: var(--ink); font-size: 14.5px; font-weight: 600; }
+  .node text.s { fill: var(--muted); font-size: 11.5px; font-weight: 500; }
+  .node { --nc: var(--blue); transform-box: fill-box; transform-origin: center; transition: opacity .35s; }
+  .node.lit rect { stroke: var(--nc); fill: rgba(20, 45, 110, 0.9); filter: url(#glow); }
+  .node.lit .ic { stroke: var(--nc); }
+  .node.busy rect { animation: busy 0.9s ease-in-out infinite; }
+  @keyframes busy { 50% { stroke: var(--nc); stroke-opacity: 1; } 0%, 100% { stroke-opacity: 0.45; } }
+  .node.hit { animation: pop .6s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes pop { 40% { transform: scale(1.07); } }
+  .node.dim { opacity: 0.32; }
+  .node.bad { --nc: var(--red); }
+  .node.bad rect { stroke: var(--red); }
+  .lock { opacity: 0; transition: opacity .3s; }
+  .node.locked .lock { opacity: 1; }
+  .node.locked rect, .node.locked text, .node.locked .ic, .node.locked .icbg { opacity: 0.45; }
+  .orb-glow { animation: breathe 3.5s ease-in-out infinite; }
+  .ring-track { fill: none; stroke: rgba(130, 170, 255, 0.16); stroke-width: 6; }
+  .ring { fill: none; stroke: url(#ringgrad); stroke-width: 6; stroke-linecap: round; transform: rotate(-90deg);
+    transform-box: fill-box; transform-origin: center; transition: stroke-dashoffset 1s cubic-bezier(.3, .8, .3, 1); filter: url(#glow); }
+  .spin { opacity: 0; transform-box: fill-box; transform-origin: center; transition: opacity .3s; }
+  .thinking .spin { opacity: 1; animation: turn 1.1s linear infinite; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  .orbtext { fill: var(--ink); font-weight: 700; font-size: 22px; }
+  .orbsub { fill: var(--muted); font-size: 11.5px; font-weight: 500; }
+  .dot { fill: #fff; filter: url(#glow); opacity: 0; }
+  .bannerrow { height: 44px; display: flex; justify-content: center; align-items: center; }
+  .banner { transform: translateY(8px); opacity: 0; pointer-events: none;
+    padding: 9px 16px; border-radius: 999px; font-size: 13.5px; font-weight: 600; white-space: nowrap;
+    background: rgba(8, 40, 46, 0.85); border: 1px solid rgba(47, 224, 194, 0.55); color: #c9fff3;
+    box-shadow: 0 0 28px rgba(47, 224, 194, 0.35); transition: opacity .35s, transform .35s; }
+  .banner.show { opacity: 1; transform: translateY(0); }
+
+  /* ---------- routing record ---------- */
+  .answer { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; margin: 6px 0 4px; }
+  .why { color: #c6d3f0; margin: 0 0 14px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 650;
+    border: 1px solid currentColor; background: rgba(255, 255, 255, 0.04); }
+  .b-local { color: #7fb0ff; box-shadow: 0 0 14px rgba(79, 140, 255, 0.35); }
+  .b-paid { color: var(--violet); box-shadow: 0 0 14px rgba(169, 139, 255, 0.35); }
+  .b-mac { color: var(--teal); box-shadow: 0 0 14px rgba(47, 224, 194, 0.35); }
+  .b-warn { color: var(--amber); box-shadow: 0 0 14px rgba(255, 200, 87, 0.25); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 13.5px; }
   dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); }
-  .error { color: var(--bad); font-weight: 600; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 14px 0; }
-  .tile { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-  .tile b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .error { color: var(--red); font-weight: 600; }
+  .fade { animation: fadein .45s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
+
+  /* ---------- replay ---------- */
+  .rhead { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .rhead .grow { flex: 1; color: var(--muted); font-size: 13px; }
+  .rhead select { padding: 7px 10px; }
+  .rhead button.start { border: 0; font-weight: 650; color: #fff; background: linear-gradient(180deg, #5b97ff, #3d6ff0); box-shadow: 0 0 20px rgba(79, 140, 255, 0.5); }
+  .tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+  .tile { padding: 14px 16px; border-radius: 16px; background: rgba(8, 20, 52, 0.55); border: 1px solid var(--glass-edge); }
+  .tile b { display: block; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; transition: color .3s; }
   .tile span { color: var(--muted); font-size: 12px; }
+  .tile.bump b { animation: bump .5s ease; }
+  @keyframes bump { 30% { color: #fff; text-shadow: 0 0 14px rgba(140, 180, 255, 0.9); } }
+  .race { display: grid; gap: 10px; margin: 4px 0 18px; }
+  .lane { display: grid; grid-template-columns: 190px 1fr 92px; align-items: center; gap: 12px; font-size: 13.5px; }
+  .track { height: 14px; border-radius: 999px; background: rgba(8, 20, 52, 0.7); border: 1px solid var(--glass-edge); overflow: hidden; }
+  .bar { height: 100%; width: 0; border-radius: 999px; transition: width .6s cubic-bezier(.3, .8, .3, 1); }
+  .bar.router { background: linear-gradient(90deg, #3d6ff0, #5cc8ff); box-shadow: 0 0 16px rgba(92, 200, 255, 0.6); }
+  .bar.opus { background: linear-gradient(90deg, #6b54d6, #a98bff); box-shadow: 0 0 16px rgba(169, 139, 255, 0.5); }
+  .lane .v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(130, 170, 255, 0.10); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .yes { color: var(--ok); font-weight: 700; } .no { color: var(--bad); font-weight: 700; }
-  footer { max-width: 1280px; margin: 0 auto; padding: 0 28px 24px; color: var(--muted); font-size: 12px; }
-  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  tr.new { animation: fadein .5s ease; }
+  .yes { color: var(--teal); font-weight: 700; } .no { color: var(--red); font-weight: 700; }
+  footer { max-width: 1360px; margin: 0 auto; padding: 4px 36px 30px; color: var(--dim); font-size: 12px; }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2, 1fr); } .lane { grid-template-columns: 120px 1fr 80px; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
+<div class="sky" aria-hidden="true"><div class="halo"></div><div id="sparks"></div></div>
+
 <header>
-  <div>
-    <h1>Cost-aware LLM router</h1>
-    <p>Two local models on this Mac answer first; Claude Opus 5.5 is asked only when they are not trusted. Sensitive data never leaves the Mac.</p>
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#8fb6ff"/></svg>
+    Cost-aware Router
   </div>
-  <label>API key <input id="key" type="password" autocomplete="off" placeholder="X-API-Key"></label>
+  <label class="key">API key <input id="key" type="password" autocomplete="off" placeholder="X-API-Key"></label>
 </header>
 
+<section class="hero">
+  <span class="pill"><span class="live"></span>Live on this Mac · gemma3:12b + phi4:14b · Claude Opus 5.5</span>
+  <h1>Ask once. <span class="grad">Pay only when it matters.</span></h1>
+  <p class="sub">Two local models answer first. Claude Opus is called only when their answer can't be trusted, and personal data never leaves this Mac.</p>
+</section>
+
 <main>
-  <section>
-    <h2>Ask</h2>
-    <div class="row">
-      <button data-preset="easy">Easy question</button>
-      <button data-preset="ticket">Help-desk ticket</button>
-      <button data-preset="sensitive">Ticket with a card number</button>
-      <button data-preset="hard">Harder question</button>
-    </div>
-    <label class="block" for="q">Question</label>
-    <textarea id="q"></textarea>
-    <label class="block">Type</label>
-    <div class="seg" id="task">
-      <button data-task="choice" aria-pressed="true">Multiple choice</button>
-      <button data-task="label" aria-pressed="false">Help-desk intent (77 labels)</button>
-    </div>
-    <div id="choiceBox">
-      <label class="block">Options (A–D)</label>
-      <div class="options">
-        <input type="text" id="o0" aria-label="Option A"><input type="text" id="o1" aria-label="Option B">
-        <input type="text" id="o2" aria-label="Option C"><input type="text" id="o3" aria-label="Option D">
+  <div class="stack">
+    <section class="card">
+      <h2>Ask</h2>
+      <div class="presets">
+        <button class="preset" data-preset="easy">Easy question<small>both models agree</small></button>
+        <button class="preset" data-preset="ticket">Help-desk ticket<small>one of 77 intents</small></button>
+        <button class="preset" data-preset="sensitive">Ticket with a card<small>personal data</small></button>
+        <button class="preset" data-preset="hard">Harder question<small>models may disagree</small></button>
       </div>
-    </div>
-    <p class="hint" id="labelHint" hidden>The router picks one of the 77 Banking77 intents.</p>
-    <label class="block">Mode</label>
-    <div class="seg" id="mode">
-      <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
-      <button data-mode="balanced" aria-pressed="true">Balanced</button>
-      <button data-mode="best_quality" aria-pressed="false">Best quality</button>
-    </div>
-    <p class="hint" id="modeHint"></p>
-    <div class="row">
-      <label><input type="checkbox" id="sensitive"> Mark as sensitive (must stay on the Mac)</label>
-    </div>
-    <div class="row"><button class="primary" id="send">Send</button><span id="sendStatus" class="hint"></span></div>
-  </section>
+      <label class="block" for="q">Question</label>
+      <textarea id="q"></textarea>
+      <label class="block">Type</label>
+      <div class="seg" id="task">
+        <button data-task="choice" aria-pressed="true">Multiple choice</button>
+        <button data-task="label" aria-pressed="false">Help-desk intent</button>
+      </div>
+      <div id="choiceBox">
+        <label class="block">Options A–D</label>
+        <div class="options">
+          <input type="text" id="o0" aria-label="Option A"><input type="text" id="o1" aria-label="Option B">
+          <input type="text" id="o2" aria-label="Option C"><input type="text" id="o3" aria-label="Option D">
+        </div>
+      </div>
+      <label class="block">Mode</label>
+      <div class="seg" id="mode">
+        <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
+        <button data-mode="balanced" aria-pressed="true">Balanced</button>
+        <button data-mode="best_quality" aria-pressed="false">Best quality</button>
+      </div>
+      <p class="hint" id="modeHint"></p>
+      <label class="toggle"><input type="checkbox" id="sensitive"> Mark as sensitive</label>
+      <button class="go" id="send">Send</button>
+    </section>
+  </div>
 
-  <section>
-    <h2>Routing record</h2>
-    <div id="record"><p class="empty">Send a question to see how the router handled it.</p></div>
-  </section>
+  <div class="stack">
+    <section class="card mapcard">
+      <div class="maphead"><h2>How the router decides</h2><div class="status" id="status">Ready</div></div>
+      <svg class="map" id="map" viewBox="0 50 900 300" role="img" aria-label="Live map of the routing decision">
+        <defs>
+          <filter id="glow" filterUnits="userSpaceOnUse" x="-20" y="0" width="940" height="420"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <radialGradient id="orbfill" cx="50%" cy="45%" r="60%"><stop offset="0%" stop-color="#9cc0ff" stop-opacity="0.95"/><stop offset="45%" stop-color="#3f73ff" stop-opacity="0.55"/><stop offset="100%" stop-color="#0a1a4a" stop-opacity="0"/></radialGradient>
+          <linearGradient id="ringgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5cc8ff"/><stop offset="100%" stop-color="#a98bff"/></linearGradient>
+        </defs>
 
-  <section class="wide">
+        <path id="w-qp" class="wire" d="M170 200H212"/>
+        <path id="w-pj1" class="wire" d="M362 200C385 200 382 128 404 128"/>
+        <path id="w-pj2" class="wire" d="M362 200C385 200 382 272 404 272"/>
+        <path id="w-pby" class="wire bypass" d="M362 200H586"/>
+        <path id="w-j1o" class="wire" d="M554 128C578 128 572 200 586 200"/>
+        <path id="w-j2o" class="wire" d="M554 272C578 272 572 200 586 200"/>
+        <path id="w-oL" class="wire" d="M694 200C718 200 714 86 738 86"/>
+        <path id="w-oS" class="wire" d="M694 200H738"/>
+        <path id="w-oK" class="wire" d="M694 200C718 200 714 314 738 314"/>
+        <circle class="dot" id="dot" r="4.5"><animateMotion id="dotmove" dur="0.8s" begin="indefinite" fill="freeze" path="M0 0"/></circle>
+
+        <g class="node" id="n-q"><rect x="20" y="176" width="150" height="48" rx="24"/>
+          <circle class="icbg" cx="46" cy="200" r="14"/><circle class="ic" cx="46" cy="196" r="4"/><path class="ic" d="M38 207c2-4 14-4 16 0"/>
+          <text x="68" y="198">Question</text><text class="s" x="68" y="213">from the caller</text></g>
+        <g class="node" id="n-p"><rect x="212" y="176" width="150" height="48" rx="24"/>
+          <circle class="icbg" cx="238" cy="200" r="14"/><path class="ic" d="M238 191l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/>
+          <text x="260" y="198">Privacy</text><text class="s" x="260" y="213" id="t-p">personal data?</text></g>
+        <g class="node" id="n-j1"><rect x="404" y="104" width="150" height="48" rx="24"/>
+          <circle class="icbg" cx="430" cy="128" r="14"/><rect class="ic" x="423" y="122" width="14" height="10" rx="2"/><path class="ic" d="M427 135h6"/>
+          <text x="452" y="126">gemma3:12b</text><text class="s" x="452" y="141" id="t-j1">local model 1</text></g>
+        <g class="node" id="n-j2"><rect x="404" y="248" width="150" height="48" rx="24"/>
+          <circle class="icbg" cx="430" cy="272" r="14"/><rect class="ic" x="423" y="266" width="14" height="10" rx="2"/><path class="ic" d="M427 279h6"/>
+          <text x="452" y="270">phi4:14b</text><text class="s" x="452" y="285" id="t-j2">local model 2</text></g>
+
+        <g id="orb">
+          <circle class="orb-glow" cx="640" cy="200" r="70" fill="url(#orbfill)"/>
+          <circle cx="640" cy="200" r="44" fill="rgba(8,20,56,0.92)" stroke="rgba(150,185,255,0.35)"/>
+          <circle class="ring-track" cx="640" cy="200" r="50"/>
+          <circle class="ring" id="ring" cx="640" cy="200" r="50" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+          <g class="spin"><circle cx="640" cy="200" r="58" fill="none" stroke="#7fb0ff" stroke-width="2" stroke-dasharray="44 320" stroke-linecap="round"/></g>
+          <text class="orbsub" x="640" y="186" text-anchor="middle">policy</text>
+          <text class="orbtext" id="t-orb" x="640" y="209" text-anchor="middle">P</text>
+          <text class="orbsub" id="t-orbsub" x="640" y="226" text-anchor="middle">waiting</text>
+        </g>
+
+        <g class="node" id="n-L" style="--nc: #4f8cff"><rect x="738" y="62" width="150" height="48" rx="24"/>
+          <circle class="icbg" cx="764" cy="86" r="14"/><path class="ic" d="M757 86l5 5 9-10"/>
+          <text x="786" y="84">On the Mac</text><text class="s" x="786" y="99" id="t-L">answered, free</text></g>
+        <g class="node" id="n-S" style="--nc: #a98bff"><rect x="738" y="176" width="150" height="48" rx="24"/>
+          <circle class="icbg" cx="764" cy="200" r="14"/><path class="ic" d="M764 191l2.5 6 6 .5-4.5 4 1.5 6-5.5-3.5-5.5 3.5 1.5-6-4.5-4 6-.5z"/>
+          <text x="786" y="198">Claude Opus</text><text class="s" x="786" y="213" id="t-S">paid, outside</text>
+          <g class="lock"><circle cx="884" cy="178" r="11" fill="#ff6b81"/><rect x="879" y="177" width="10" height="7.5" rx="1.5" fill="#fff"/><path d="M881.2 177v-2.4a2.8 2.8 0 0 1 5.6 0v2.4" fill="none" stroke="#fff" stroke-width="1.6"/></g></g>
+        <g class="node" id="n-K" style="--nc: #2fe0c2"><rect x="738" y="290" width="150" height="48" rx="24"/>
+          <circle class="icbg" cx="764" cy="314" r="14"/><path class="ic" d="M764 305l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/><path class="ic" d="M761 313l2 2 4-4"/>
+          <text x="786" y="312">Kept on Mac</text><text class="s" x="786" y="327" id="t-K">abstained safely</text></g>
+      </svg>
+      <div class="bannerrow"><div class="banner" id="banner">Personal data detected · nothing left this Mac</div></div>
+    </section>
+
+    <section class="card">
+      <h2>Routing record</h2>
+      <div id="record"><p class="empty">Press Send and watch the map: the lit path is the route your question took.</p></div>
+    </section>
+  </div>
+
+  <section class="card wide">
     <h2>Replay labelled questions</h2>
-    <div class="row">
+    <div class="rhead">
       <label>Questions <select id="count"><option>10</option><option selected>20</option><option>40</option></select></label>
-      <span class="hint">Uses the mode selected above. Questions come from the held-out test split, with known answers.</span>
-      <button class="primary" id="start">Start replay</button><button id="stop" disabled>Stop</button>
+      <span class="grow">From the held-out test set, so the right answers are known. Uses the mode above.</span>
+      <button class="start" id="start">Start replay</button><button id="stop" disabled>Stop</button>
     </div>
     <div class="tiles">
-      <div class="tile"><b id="t-n">0</b><span>requests</span></div>
-      <div class="tile"><b id="t-acc">–</b><span>correct (of answered)</span></div>
-      <div class="tile"><b id="t-esc">–</b><span>sent to Claude Opus</span></div>
-      <div class="tile"><b id="t-abs">–</b><span>abstained</span></div>
-      <div class="tile"><b id="t-cost">$0.0000</b><span>router cost</span></div>
-      <div class="tile"><b id="t-opus">$0.0000</b><span>Opus for every request (est.)</span></div>
-      <div class="tile"><b id="t-lat">–</b><span>median latency</span></div>
+      <div class="tile" id="tl-n"><b id="t-n">0</b><span>questions</span></div>
+      <div class="tile" id="tl-acc"><b id="t-acc">–</b><span>correct (of answered)</span></div>
+      <div class="tile" id="tl-esc"><b id="t-esc">–</b><span>sent to Claude Opus</span></div>
+      <div class="tile" id="tl-abs"><b id="t-abs">–</b><span>abstained</span></div>
+      <div class="tile" id="tl-lat"><b id="t-lat">–</b><span>median latency</span></div>
+    </div>
+    <div class="race">
+      <div class="lane"><span>Router (actual)</span><div class="track"><div class="bar router" id="bar-r"></div></div><span class="v" id="t-cost">$0.0000</span></div>
+      <div class="lane"><span>Opus for every question</span><div class="track"><div class="bar opus" id="bar-o"></div></div><span class="v" id="t-opus">$0.0000</span></div>
     </div>
     <table>
-      <thead><tr><th>#</th><th>Question</th><th>What happened</th><th>Answer</th><th>Correct</th><th class="num">Cost</th><th class="num">Latency</th></tr></thead>
+      <thead><tr><th>#</th><th>Question</th><th>Route</th><th>Answer</th><th>Correct</th><th class="num">Cost</th><th class="num">Latency</th></tr></thead>
       <tbody id="log"></tbody>
     </table>
   </section>
 </main>
 <footer>
-  Costs are the router's own accounting of real API usage. "Opus for every request" assumes $0.0027 per question, the mean measured in the held-out evaluation (12 Nov).
+  Costs are the router's own accounting of real API usage. "Opus for every question" assumes $0.0027 per question, the mean measured in the held-out evaluation.
   Replay questions: MMLU (MIT licence) and Banking77 (CC BY 4.0). The API key you type is sent only to this router and is not stored.
 </footer>
 
 <script>
 "use strict";
 const OPUS_PER_CALL = 0.0027;
+const RING = 314.16;
 const MODE_HINTS = {
-  cheapest: "Local answer only, never paid. Fast, but unverified when the local models disagree.",
-  balanced: "Local answer when it is trusted (models agree / policy confident); otherwise ask Claude Opus.",
-  best_quality: "Always ask Claude Opus (sensitive questions still stay on the Mac)."
+  cheapest: "Local answer only, never paid. Unverified when the two models disagree.",
+  balanced: "Local answer when it is trusted, otherwise Claude Opus.",
+  best_quality: "Straight to Claude Opus (sensitive questions still stay on the Mac)."
 };
+// reason -> [explanation, badge class, short route, outcome node]
 const WHY = {
-  juniors_agreed: ["Both local models gave the same answer, so it was accepted without a paid call.", "b-ok", "answered locally"],
-  policy_accepted: ["The policy model was confident the local answer is right, so no paid call was needed.", "b-ok", "answered locally"],
-  cheapest_unverified: ["Cheapest mode: the local answer was returned without verification.", "b-warn", "local, unverified"],
-  escalated_disagreement: ["The local models disagreed, so the question went to Claude Opus.", "b-paid", "sent to Claude Opus"],
-  escalated_low_confidence: ["The policy model was not confident in the local answer, so the question went to Claude Opus.", "b-paid", "sent to Claude Opus"],
-  best_quality_mode: ["Best-quality mode: the question went straight to Claude Opus.", "b-paid", "sent to Claude Opus"],
-  sensitive_disagreement: ["Sensitive data must stay on the Mac and the local models disagreed, so the router abstained instead of sending it out.", "b-local", "kept on the Mac, abstained"],
-  sensitive_low_confidence: ["Sensitive data must stay on the Mac and the local answer was not trusted, so the router abstained instead of sending it out.", "b-local", "kept on the Mac, abstained"],
-  juniors_unreadable: ["Neither local model gave a usable answer.", "b-warn", "abstained"],
-  egress_blocked: ["The egress gateway refused to send sensitive data out.", "b-local", "kept on the Mac, abstained"],
-  budget_exceeded: ["The spend cap is reached, so the router abstained instead of paying.", "b-warn", "abstained (budget)"],
-  senior_unavailable: ["Claude Opus could not be reached, so the router abstained rather than guess.", "b-warn", "abstained"],
-  senior_unreadable: ["Claude Opus's reply could not be read, so the router abstained.", "b-warn", "abstained"]
+  juniors_agreed: ["Both local models gave the same answer, so it was accepted without a paid call.", "b-local", "on the Mac", "L"],
+  policy_accepted: ["The policy was confident the local answer is right, so no paid call was needed.", "b-local", "on the Mac", "L"],
+  cheapest_unverified: ["Cheapest mode: the local answer was returned without verification.", "b-warn", "on the Mac, unverified", "L"],
+  escalated_disagreement: ["The local models disagreed, so the question went to Claude Opus.", "b-paid", "Claude Opus", "S"],
+  escalated_low_confidence: ["The policy wasn't confident in the local answer, so the question went to Claude Opus.", "b-paid", "Claude Opus", "S"],
+  best_quality_mode: ["Best-quality mode: the question went straight to Claude Opus.", "b-paid", "Claude Opus", "S"],
+  sensitive_disagreement: ["Personal data must stay on the Mac and the local models disagreed, so the router abstained instead of sending it out.", "b-mac", "kept on the Mac", "K"],
+  sensitive_low_confidence: ["Personal data must stay on the Mac and the local answer wasn't trusted, so the router abstained instead of sending it out.", "b-mac", "kept on the Mac", "K"],
+  juniors_unreadable: ["Neither local model gave a usable answer.", "b-warn", "abstained", "K"],
+  egress_blocked: ["The egress gateway refused to send personal data out.", "b-mac", "kept on the Mac", "K"],
+  budget_exceeded: ["The spend cap is reached, so the router abstained instead of paying.", "b-warn", "abstained (budget)", "K"],
+  senior_unavailable: ["Claude Opus could not be reached, so the router abstained rather than guess.", "b-warn", "abstained", "K"],
+  senior_unreadable: ["Claude Opus's reply could not be read, so the router abstained.", "b-warn", "abstained", "K"]
 };
 const $ = (id) => document.getElementById(id);
 const state = { task: "choice", mode: "balanced", labels: [], items: [], running: false };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function el(tag, text, cls) {
   const e = document.createElement(tag);
@@ -168,16 +370,108 @@ function el(tag, text, cls) {
   if (cls) e.className = cls;
   return e;
 }
+
+// ---------------------------------------------------------------- the live map
+const WIRES = ["qp", "pj1", "pj2", "pby", "j1o", "j2o", "oL", "oS", "oK"];
+const NODES = ["q", "p", "j1", "j2", "L", "S", "K"];
+const COLOR = { L: "#4f8cff", S: "#a98bff", K: "#2fe0c2" };
+function wire(id, cls, color) {
+  const w = $("w-" + id);
+  w.classList.remove("on", "flow", "off");
+  if (cls) w.classList.add(cls);
+  w.style.setProperty("--wc", color || "#4f8cff");
+}
+function node(id, ...cls) {
+  const n = $("n-" + id);
+  n.classList.remove("lit", "busy", "hit", "dim", "bad", "locked");
+  for (const c of cls) n.classList.add(c);
+}
+function setText(id, text) { $(id).textContent = text; }
+function ring(p) { $("ring").style.strokeDashoffset = String(RING * (1 - Math.max(0, Math.min(1, p)))); }
+function status(html) { const s = $("status"); s.replaceChildren(); for (const part of html) s.append(typeof part === "string" ? part : el("b", part.b)); }
+function banner(show, text) { const b = $("banner"); if (text) b.textContent = text; b.classList.toggle("show", show); }
+
+function mapReset() {
+  for (const w of WIRES) wire(w);
+  for (const n of NODES) node(n);
+  $("orb").classList.remove("thinking");
+  ring(0);
+  setText("t-orb", "P"); setText("t-orbsub", "waiting");
+  setText("t-p", "personal data?"); setText("t-j1", "local model 1"); setText("t-j2", "local model 2");
+  setText("t-L", "answered, free"); setText("t-S", "paid, outside"); setText("t-K", "abstained safely");
+  banner(false);
+}
+function mapThinking(mode, flagged) {
+  mapReset();
+  node("q", "lit"); wire("qp", "on");
+  node("p", "lit"); setText("t-p", flagged ? "flagged" : "checking…");
+  $("orb").classList.add("thinking"); setText("t-orbsub", "thinking");
+  if (mode === "best_quality" && !flagged) {
+    wire("pby", "flow"); node("j1", "dim"); node("j2", "dim");
+    setText("t-orb", "–"); setText("t-orbsub", "skipped");
+  } else {
+    wire("pj1", "flow"); wire("pj2", "flow");
+    node("j1", "busy"); node("j2", "busy"); setText("t-j1", "thinking…"); setText("t-j2", "thinking…");
+  }
+  status(["Routing your question…"]);
+}
+function travel(pathId, color) {
+  const dot = $("dot"), mv = $("dotmove");
+  mv.setAttribute("path", $(pathId).getAttribute("d"));
+  dot.style.fill = color;
+  dot.style.opacity = "1";
+  try { mv.beginElement(); } catch (e) { /* no SMIL: the lit wire still shows the route */ }
+  setTimeout(() => { dot.style.opacity = "0"; }, 820);
+}
+async function mapResult(out, mode, fast) {
+  const [, , short, outcome] = WHY[out.reason] || ["", "b-warn", out.reason, "K"];
+  const color = COLOR[outcome];
+  const usedJuniors = !(mode === "best_quality" && out.data_class !== "sensitive");
+  const sensitive = out.data_class === "sensitive";
+  setText("t-p", sensitive ? "personal data!" : "none found");
+  if (sensitive) node("p", "lit");
+  if (usedJuniors) {
+    wire("pj1", "on"); wire("pj2", "on");
+    node("j1", "lit"); node("j2", "lit"); setText("t-j1", "answered"); setText("t-j2", "answered");
+    wire("j1o", "on"); wire("j2o", "on");
+  } else {
+    wire("pby", "on");
+  }
+  await sleep(fast ? 120 : 380);
+  $("orb").classList.remove("thinking");
+  if (out.policy_p !== null && out.policy_p !== undefined) {
+    ring(out.policy_p); setText("t-orb", out.policy_p.toFixed(2)); setText("t-orbsub", "P(correct)");
+  } else if (!usedJuniors) {
+    ring(0); setText("t-orb", "–"); setText("t-orbsub", "skipped");
+  } else {
+    const agreed = out.reason === "juniors_agreed" || out.reason === "cheapest_unverified";
+    ring(agreed ? 1 : 0.15); setText("t-orb", agreed ? "agree" : "differ"); setText("t-orbsub", "rule");
+  }
+  await sleep(fast ? 160 : 520);
+  for (const o of ["L", "S", "K"]) { if (o !== outcome) { wire("o" + o, "off"); node(o, "dim"); } }
+  wire("o" + outcome, "on", color);
+  travel("w-o" + outcome, color);
+  await sleep(fast ? 200 : 650);
+  node(outcome, "lit", "hit");
+  if (outcome === "L") setText("t-L", out.verified ? `free · $${out.cost_usd.toFixed(4)}` : "unverified · $0");
+  if (outcome === "S") setText("t-S", `paid · $${out.cost_usd.toFixed(4)}`);
+  if (outcome === "K") setText("t-K", sensitive ? "data stayed here" : "abstained safely");
+  if (sensitive) { node("S", "locked"); banner(true, "Personal data detected · nothing left this Mac"); }
+  status([short === "Claude Opus" ? "Escalated to " : "Route: ", { b: short }, ` · ${(out.latency_ms / 1000).toFixed(1)} s`]);
+}
+function mapError(code, message) {
+  $("orb").classList.remove("thinking");
+  if (code === "models_unavailable") { node("j1", "bad"); node("j2", "bad"); setText("t-j1", "unavailable"); setText("t-j2", "unavailable"); }
+  status([{ b: "Not routed: " }, message]);
+}
+
+// ---------------------------------------------------------------- the form
 function pressed(groupId, attr, value) {
   for (const b of $(groupId).querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset[attr] === value));
 }
-function setTask(task) {
-  state.task = task; pressed("task", "task", task);
-  $("choiceBox").hidden = task !== "choice"; $("labelHint").hidden = task !== "label";
-}
+function setTask(task) { state.task = task; pressed("task", "task", task); $("choiceBox").hidden = task !== "choice"; }
 function setMode(mode) { state.mode = mode; pressed("mode", "mode", mode); $("modeHint").textContent = MODE_HINTS[mode]; }
 function setOptions(opts) { for (let i = 0; i < 4; i++) $("o" + i).value = opts[i] || ""; }
-
 const PRESETS = {
   easy: () => { setTask("choice"); $("q").value = "Which planet is closest to the Sun?"; setOptions(["Venus", "Mercury", "Earth", "Mars"]); $("sensitive").checked = false; },
   ticket: () => { setTask("label"); $("q").value = "I was charged twice for the same coffee this morning."; $("sensitive").checked = false; },
@@ -189,66 +483,75 @@ const PRESETS = {
     setTask("choice"); $("q").value = it.question; setOptions(it.options); $("sensitive").checked = false;
   }
 };
-
 function body(question, task, options, sensitive) {
   return { question, task_type: task, options: task === "choice" ? options : state.labels, mode: state.mode, sensitive };
 }
+class ApiError extends Error { constructor(code, message) { super(message); this.code = code; } }
 async function call(payload) {
   const r = await fetch("/v1/answer", { method: "POST", headers: { "Content-Type": "application/json", "X-API-Key": $("key").value }, body: JSON.stringify(payload) });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
     const err = (data && data.error) || {};
-    throw new Error(r.status === 401 ? "Enter the API key at the top right." : `${r.status} ${err.code || ""}: ${err.message || "request failed"}`);
+    if (r.status === 401) throw new ApiError("unauthorized", "Enter the API key at the top right.");
+    throw new ApiError(err.code || String(r.status), `${r.status} ${err.code || ""}: ${err.message || "request failed"}`);
   }
   return data;
 }
 function answerText(out, payload) {
-  if (out.answer === null || out.answer === undefined) return "No answer (abstained)";
-  if (payload.task_type === "choice") {
-    const i = "ABCD".indexOf(out.answer);
-    return i >= 0 ? `${out.answer}: ${payload.options[i]}` : out.answer;
-  }
+  if (out.answer === null || out.answer === undefined) return "No answer · abstained";
+  if (payload.task_type === "choice") { const i = "ABCD".indexOf(out.answer); return i >= 0 ? `${out.answer} · ${payload.options[i]}` : out.answer; }
   return out.answer;
 }
 function showRecord(out, payload) {
   const box = $("record"); box.replaceChildren();
+  const wrap = el("div", undefined, "fade");
   const [why, cls, short] = WHY[out.reason] || [out.reason, "b-warn", out.reason];
-  box.append(el("span", short, "badge " + cls));
-  if (out.data_class === "sensitive") box.append(" ", el("span", "sensitive", "badge b-local"));
-  box.append(el("div", answerText(out, payload), "answer"), el("p", why, "why"));
+  wrap.append(el("span", short, "badge " + cls));
+  if (out.data_class === "sensitive") wrap.append(" ", el("span", "personal data", "badge b-mac"));
+  wrap.append(el("div", answerText(out, payload), "answer"), el("p", why, "why"));
   const dl = el("dl");
   const rows = [
-    ["Reason code", out.reason], ["Answered by", out.model || "–"], ["Verified", out.verified ? "yes" : "no"],
-    ["Paid call", out.escalated ? "yes" : "no"], ["Data class", out.data_class],
-    ["Cost", "$" + out.cost_usd.toFixed(4)], ["Latency", out.latency_ms + " ms"],
-    ["Decided by", (out.versions && out.versions.policy) || "–"],
+    ["Answered by", out.model || "–"], ["Cost", "$" + out.cost_usd.toFixed(4)], ["Latency", out.latency_ms + " ms"],
+    ["Verified", out.verified ? "yes" : "no"], ["Decided by", (out.versions && out.versions.policy) || "–"],
     ["P(local answer correct)", out.policy_p === null || out.policy_p === undefined ? "–" : out.policy_p.toFixed(2)],
-    ["Request ID", out.request_id]
+    ["Reason code", out.reason], ["Request ID", out.request_id]
   ];
   for (const [k, v] of rows) dl.append(el("dt", k), el("dd", String(v)));
-  box.append(dl);
+  wrap.append(dl); box.append(wrap);
 }
-function showError(msg) { const box = $("record"); box.replaceChildren(el("p", msg, "error")); }
+function showError(msg) { $("record").replaceChildren(el("p", msg, "error")); }
 
 async function send() {
   const payload = body($("q").value.trim(), state.task, [0, 1, 2, 3].map((i) => $("o" + i).value.trim()), $("sensitive").checked);
-  $("send").disabled = true; $("sendStatus").textContent = "waiting for the router…";
-  try { showRecord(await call(payload), payload); } catch (e) { showError(e.message); }
-  finally { $("send").disabled = false; $("sendStatus").textContent = ""; }
+  $("send").disabled = true;
+  mapThinking(state.mode, payload.sensitive);
+  try {
+    const out = await call(payload);
+    await mapResult(out, payload.mode, false);
+    showRecord(out, payload);
+  } catch (e) { mapError(e.code, e.message); showError(e.message); }
+  finally { $("send").disabled = false; }
 }
 
+// ---------------------------------------------------------------- replay
 const stats = { n: 0, answered: 0, correct: 0, escalated: 0, abstained: 0, cost: 0, lat: [] };
 function median(xs) { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : 0; }
 function pct(a, b) { return b ? Math.round(100 * a / b) + "%" : "–"; }
+function tile(id, value) {
+  const b = $("t-" + id); if (b.textContent === value) return;
+  b.textContent = value; const t = $("tl-" + id); t.classList.remove("bump"); void t.offsetWidth; t.classList.add("bump");
+}
 function renderStats() {
-  $("t-n").textContent = stats.n; $("t-acc").textContent = pct(stats.correct, stats.answered);
-  $("t-esc").textContent = pct(stats.escalated, stats.n); $("t-abs").textContent = pct(stats.abstained, stats.n);
-  $("t-cost").textContent = "$" + stats.cost.toFixed(4); $("t-opus").textContent = "$" + (stats.n * OPUS_PER_CALL).toFixed(4);
-  $("t-lat").textContent = stats.lat.length ? (median(stats.lat) / 1000).toFixed(1) + " s" : "–";
+  tile("n", String(stats.n)); tile("acc", pct(stats.correct, stats.answered));
+  tile("esc", pct(stats.escalated, stats.n)); tile("abs", pct(stats.abstained, stats.n));
+  tile("lat", stats.lat.length ? (median(stats.lat) / 1000).toFixed(1) + " s" : "–");
+  const opus = stats.n * OPUS_PER_CALL, top = Math.max(opus, stats.cost, 1e-9);
+  $("t-cost").textContent = "$" + stats.cost.toFixed(4); $("t-opus").textContent = "$" + opus.toFixed(4);
+  $("bar-r").style.width = (100 * stats.cost / top) + "%"; $("bar-o").style.width = (100 * opus / top) + "%";
 }
 function logRow(i, item, out, err) {
-  const tr = el("tr");
-  tr.append(el("td", String(i)), el("td", item.question.length > 90 ? item.question.slice(0, 87) + "…" : item.question));
+  const tr = el("tr", undefined, "new");
+  tr.append(el("td", String(i)), el("td", item.question.length > 86 ? item.question.slice(0, 83) + "…" : item.question));
   if (err) { tr.append(el("td", err, "error"), el("td", ""), el("td", ""), el("td", "", "num"), el("td", "", "num")); }
   else {
     const right = out.status === "answered" ? out.answer === item.gold : null;
@@ -261,32 +564,44 @@ function logRow(i, item, out, err) {
 async function replay() {
   Object.assign(stats, { n: 0, answered: 0, correct: 0, escalated: 0, abstained: 0, cost: 0, lat: [] });
   $("log").replaceChildren(); renderStats();
-  state.running = true; $("start").disabled = true; $("stop").disabled = false;
+  state.running = true; $("start").disabled = true; $("stop").disabled = false; $("send").disabled = true;
   const items = state.items.slice(0, Number($("count").value));
   for (let i = 0; i < items.length && state.running; i++) {
     const it = items[i];
+    const payload = body(it.question, it.task_type, it.options || [], false);
+    mapThinking(state.mode, false);
     try {
-      const out = await call(body(it.question, it.task_type, it.options || [], false));
+      const out = await call(payload);
+      await mapResult(out, payload.mode, true);
+      showRecord(out, payload);
       stats.n++; stats.cost += out.cost_usd; stats.lat.push(out.latency_ms);
       if (out.escalated) stats.escalated++;
       if (out.status === "answered") { stats.answered++; if (out.answer === it.gold) stats.correct++; } else stats.abstained++;
       logRow(i + 1, it, out);
     } catch (e) {
-      logRow(i + 1, it, null, e.message);
-      if (e.message.startsWith("Enter the API key")) break;
+      mapError(e.code, e.message); logRow(i + 1, it, null, e.message);
+      if (e.code === "unauthorized") break;
     }
     renderStats();
   }
-  state.running = false; $("start").disabled = false; $("stop").disabled = true;
+  state.running = false; $("start").disabled = false; $("stop").disabled = true; $("send").disabled = false;
+  status(["Replay finished: ", { b: `${stats.n} questions` }, ` · router $${stats.cost.toFixed(4)} vs Opus $${(stats.n * OPUS_PER_CALL).toFixed(4)}`]);
 }
 
+// ---------------------------------------------------------------- start-up
 for (const b of $("task").querySelectorAll("button")) b.addEventListener("click", () => setTask(b.dataset.task));
 for (const b of $("mode").querySelectorAll("button")) b.addEventListener("click", () => setMode(b.dataset.mode));
 for (const b of document.querySelectorAll("[data-preset]")) b.addEventListener("click", () => PRESETS[b.dataset.preset]());
 $("send").addEventListener("click", send);
 $("start").addEventListener("click", replay);
 $("stop").addEventListener("click", () => { state.running = false; });
-setMode("balanced"); PRESETS.easy();
+const sparks = $("sparks");
+for (let i = 0; i < 14; i++) {     // fixed positions: the page looks the same every time
+  const s = el("span", undefined, "spark");
+  s.style.left = (8 + (i * 61) % 84) + "%"; s.style.top = (40 + (i * 37) % 260) + "px"; s.style.animationDelay = (i * 0.37) + "s";
+  sparks.append(s);
+}
+setMode("balanced"); PRESETS.easy(); mapReset();
 fetch("/demo/samples").then((r) => r.json()).then((d) => { state.labels = d.labels; state.items = d.items; })
   .catch(() => showError("Could not load the demo questions from /demo/samples."));
 </script>
