@@ -3,164 +3,534 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cost-aware LLM router · demo</title>
+<title>Cost-aware LLM router · live demo</title>
 <style>
   :root {
-    --ink: #1d232b; --muted: #5c6670; --line: #dfe3e8; --panel: #ffffff; --bg: #f4f6f8;
-    --accent: #2457c5; --ok: #1f7a4d; --ok-bg: #e5f4ec; --warn: #9a5b00; --warn-bg: #fdf1dd;
-    --paid: #6b3fc0; --paid-bg: #efe8fb; --local: #0f6e76; --local-bg: #e0f2f3; --bad: #b42318;
+    --bg: #030816; --bg2: #061233; --ink: #e8efff; --muted: #8fa3c7; --dim: #7387ad;
+    --line: rgba(120, 160, 255, 0.16); --glass: rgba(14, 30, 72, 0.38); --glass-edge: rgba(130, 170, 255, 0.20);
+    --blue: #4f8cff; --cyan: #5cc8ff; --orange: #ffa25f; --teal: #2fe0c2; --amber: #ffc857; --red: #ff6b81;
+    /* semantic colours: what a colour means, not which colour it is */
+    --ink-soft: #cdd9f5; --ring: #9cc0ff; --surface-in: rgba(8, 20, 52, 0.65); --surface-raise: rgba(20, 40, 95, 0.45);
+    --route-local: #7fb0ff; --route-paid: var(--orange); --route-inhouse: var(--teal); --warn: var(--amber); --danger: var(--red);
+    --grad-primary: linear-gradient(180deg, #5b97ff, #3d6ff0);
+    --glow-primary: 0 0 22px rgba(79, 140, 255, 0.45);
+    /* type scale: six steps instead of nine one-off sizes */
+    --fs-xs: 12px; --fs-sm: 13px; --fs-base: 14px; --fs-md: 15px; --fs-lg: 16px; --fs-xl: 26px;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
-  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
-           padding: 16px 28px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 19px; margin: 0; }
-  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-  header label { font-size: 13px; color: var(--muted); }
-  header input { width: 220px; margin-left: 6px; }
-  main { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(340px, 1fr); gap: 20px; padding: 20px 28px; max-width: 1280px; margin: 0 auto; }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
-  section.wide { grid-column: 1 / -1; }
-  h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-  label.block { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 13px; }
-  textarea, input[type=text], input[type=password], select { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
-  textarea { width: 100%; min-height: 70px; resize: vertical; }
-  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .options input { width: 100%; }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
-  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  button:disabled { opacity: .5; cursor: default; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-  .seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
-  .seg button:last-child { border-right: 0; }
-  .seg button[aria-pressed=true] { background: var(--ink); color: #fff; }
-  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
-  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
-  .b-ok { background: var(--ok-bg); color: var(--ok); } .b-warn { background: var(--warn-bg); color: var(--warn); }
-  .b-paid { background: var(--paid-bg); color: var(--paid); } .b-local { background: var(--local-bg); color: var(--local); }
-  .answer { font-size: 22px; font-weight: 700; margin: 10px 0 4px; }
-  .why { margin: 4px 0 14px; }
-  dl { display: grid; grid-template-columns: max-content 1fr; gap: 5px 16px; margin: 0; font-size: 14px; }
+  html, body { margin: 0; }
+  body {
+    font: var(--fs-md)/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    color: var(--ink); min-height: 100vh; overflow-x: hidden;
+    background:
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(79, 140, 255, 0.28), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 10% 110%, rgba(40, 70, 200, 0.22), transparent 60%),
+      linear-gradient(180deg, var(--bg2), var(--bg) 55%);
+  }
+  body::before {            /* faint dot grid */
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: 0.35;
+    background-image: radial-gradient(rgba(140, 175, 255, 0.18) 1px, transparent 1px);
+    background-size: 26px 26px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 30%, transparent 80%);
+  }
+  .sky { position: absolute; inset: 0 0 auto 0; height: 900px; overflow: hidden; pointer-events: none; }
+  .halo {                   /* glowing horizon arc */
+    position: absolute; left: 50%; top: -778px; width: 2800px; height: 860px; margin-left: -1400px;
+    border-radius: 50%; border-bottom: 2px solid rgba(185, 210, 255, 0.85); pointer-events: none;
+    box-shadow: 0 38px 120px rgba(79, 140, 255, 0.45), 0 6px 26px rgba(150, 190, 255, 0.55);
+    animation: breathe 6s ease-in-out infinite;
+    -webkit-mask-image: linear-gradient(90deg, transparent 30%, #000 44%, #000 56%, transparent 70%);
+    mask-image: linear-gradient(90deg, transparent 30%, #000 44%, #000 56%, transparent 70%);
+  }
+  @keyframes breathe { 50% { opacity: 0.72; } }
+
+  header { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 18px 36px; max-width: 1360px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.01em; }
+  .brand svg { filter: drop-shadow(0 0 8px rgba(110, 160, 255, 0.9)); }
+  .key { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--fs-sm); }
+  input[type=password], input[type=text], textarea, select {
+    font: inherit; color: var(--ink); background: var(--surface-in); border: 1px solid var(--glass-edge);
+    border-radius: 12px; padding: 8px 12px; outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.25); }
+  button:focus-visible, select:focus-visible, input[type=checkbox]:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::placeholder { color: var(--muted); opacity: 1; }
+  .keywrap { display: grid; justify-items: end; gap: 4px; }
+  .keyerr { margin: 0; color: var(--danger); font-size: var(--fs-sm); font-weight: 600; }
+  .key input[aria-invalid=true] { border-color: var(--red); box-shadow: 0 0 0 3px rgba(255, 107, 129, 0.25); }
+  .settings .seg { margin-top: 0; }
+  .emptyrow td { color: var(--muted); text-align: center; padding: 22px 10px; }
+  .key input { width: 210px; border-radius: 999px; background: rgba(6, 16, 44, 0.92); }
+  header { z-index: 2; }
+
+  .hero { position: relative; text-align: center; padding: 26px 24px 8px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: var(--fs-sm);
+    color: #cfdcff; background: rgba(30, 55, 130, 0.35); border: 1px solid var(--glass-edge);
+    box-shadow: inset 0 0 18px rgba(79, 140, 255, 0.18); }
+  .live { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); animation: blink 1.6s infinite; }
+  @keyframes blink { 50% { opacity: 0.35; } }
+  h1 { margin: 16px 0 8px; font-size: clamp(30px, 4.2vw, 50px); line-height: 1.08; letter-spacing: -0.025em; font-weight: 750; }
+  h1 .grad { background: linear-gradient(90deg, #8fb6ff, #6fdcff 55%, #5ef0d0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: var(--fs-lg); }
+
+  main { position: relative; display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 22px;
+    max-width: 1360px; margin: 0 auto; padding: 26px 36px 18px; }
+  .card { position: relative; background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 22px;
+    padding: 20px 22px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 20px 60px rgba(0, 6, 30, 0.55), inset 0 1px 0 rgba(180, 205, 255, 0.10); }
+  .card h2 { margin: 0 0 14px; font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .wide { grid-column: 1 / -1; }
+  .stack { display: grid; gap: 22px; align-content: start; }
+
+  .chat { display: flex; flex-direction: column; gap: 8px; min-height: 120px; max-height: 300px; overflow-y: auto; padding: 2px 2px 10px; }
+  .msg { max-width: 86%; padding: 9px 13px; border-radius: 16px; font-size: var(--fs-base); line-height: 1.4; animation: fadein .3s ease both; }
+  .msg.me { align-self: flex-end; color: #fff; background: var(--grad-primary); border-bottom-right-radius: 5px; }
+  .msg.bot { align-self: flex-start; background: rgba(20, 40, 95, 0.55); border: 1px solid var(--glass-edge); border-bottom-left-radius: 5px; }
+  .msg.err { color: var(--danger); }
+  .msg .rtype { display: block; margin-bottom: 3px; font-size: var(--fs-sm); color: #bcd0ff; }
+  .msg .meta { display: block; margin-top: 4px; font-size: var(--fs-xs); color: var(--muted); }
+  .dots i { display: inline-block; width: 6px; height: 6px; margin: 0 2px; border-radius: 50%; background: #9fb9ff; animation: blink 1s infinite; }
+  .dots i:nth-child(2) { animation-delay: .15s; }
+  .dots i:nth-child(3) { animation-delay: .3s; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+  .chip { font-size: var(--fs-sm); padding: 6px 11px; border-radius: 999px; }
+  button { font: inherit; color: var(--ink); cursor: pointer; border-radius: 12px; padding: 9px 12px;
+    background: var(--surface-raise); border: 1px solid var(--glass-edge); transition: transform .15s, border-color .2s, box-shadow .2s, background .2s; }
+  button:hover { border-color: rgba(140, 180, 255, 0.55); }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+  .block { display: block; margin: 14px 0 6px; font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  textarea { width: 100%; min-height: 74px; resize: vertical; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 14px;
+    background: rgba(6, 16, 44, 0.7); border: 1px solid var(--glass-edge); }
+  .seg button { border: 0; background: transparent; padding: 7px 8px; font-size: var(--fs-base); color: var(--muted); border-radius: 10px; }
+  .seg button[aria-pressed=true] { color: #fff; background: linear-gradient(180deg, rgba(79, 140, 255, 0.55), rgba(60, 100, 230, 0.45));
+    box-shadow: 0 0 10px rgba(79, 140, 255, 0.3); }
+  .hint { color: var(--muted); font-size: var(--fs-sm); margin: 7px 0 0; min-height: 18px; }
+  .toggle { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: var(--fs-base); color: var(--ink-soft); cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--teal); }
+  .go { width: 100%; margin-top: 16px; padding: 12px; font-weight: 650; font-size: var(--fs-md); border: 0; color: #fff;
+    background: var(--grad-primary); box-shadow: var(--glow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+  .go:hover { box-shadow: 0 0 36px rgba(79, 140, 255, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
+
+  /* ---------- the live router map ---------- */
+  .mapcard { padding: 18px 18px 12px; overflow: hidden; }
+  .maphead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 0 6px; }
+  .status { font-size: var(--fs-sm); color: var(--muted); }
+  .status b { color: var(--ink); font-weight: 600; }
+  svg.map { display: block; width: 100%; height: auto; }
+  .wire { fill: none; stroke: var(--line); stroke-width: 2; transition: stroke .35s, opacity .35s; }
+  .wire.on { stroke: var(--wc, var(--blue)); filter: url(#glow); }
+  .wire.flow { stroke: var(--wc, var(--blue)); stroke-dasharray: 3 11; stroke-linecap: round; animation: flow .7s linear infinite; filter: url(#glow); }
+  .wire.bypass { stroke-dasharray: 4 6; }
+  .wire.off { opacity: 0.25; }
+  @keyframes flow { to { stroke-dashoffset: -14; } }
+  .node rect { fill: rgba(10, 24, 62, 0.82); stroke: rgba(130, 170, 255, 0.32); stroke-width: 1.3; transition: stroke .3s, fill .3s; }
+  .node .ic { fill: none; stroke: #9fb9ff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: stroke .3s; }
+  .node .icbg { fill: rgba(79, 140, 255, 0.10); stroke: rgba(130, 170, 255, 0.35); }
+  .node text { fill: var(--ink); font-size: 13.5px; font-weight: 600; }
+  .node text.s { fill: var(--muted); font-size: 11.5px; font-weight: 500; }
+  .node { --nc: var(--blue); transform-box: fill-box; transform-origin: center; transition: opacity .35s; }
+  .node.lit rect { stroke: var(--nc); fill: rgba(20, 45, 110, 0.9); filter: url(#glow); }
+  .node.lit .ic { stroke: var(--nc); }
+  .node.busy rect { animation: busy 0.9s ease-in-out infinite; }
+  @keyframes busy { 50% { stroke: var(--nc); stroke-opacity: 1; } 0%, 100% { stroke-opacity: 0.45; } }
+  .node.hit { animation: pop .6s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes pop { 40% { transform: scale(1.07); } }
+  .node.dim { opacity: 0.32; }
+  .node.bad { --nc: var(--red); }
+  .node.bad rect { stroke: var(--red); }
+  .lock { opacity: 0; transition: opacity .3s; }
+  .node.locked .lock { opacity: 1; }
+  .node.locked rect, .node.locked text, .node.locked .ic, .node.locked .icbg { opacity: 0.45; }
+  .orb-glow { animation: breathe 3.5s ease-in-out infinite; }
+  .ring-track { fill: none; stroke: rgba(130, 170, 255, 0.16); stroke-width: 6; }
+  .ring { fill: none; stroke: url(#ringgrad); stroke-width: 6; stroke-linecap: round; transform: rotate(-90deg);
+    transform-box: fill-box; transform-origin: center; transition: stroke-dashoffset 1s cubic-bezier(.3, .8, .3, 1); filter: url(#glow); }
+  .spin { opacity: 0; transform-box: fill-box; transform-origin: center; transition: opacity .3s; }
+  .thinking .spin { opacity: 1; animation: turn 1.1s linear infinite; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  .orbtext { fill: var(--ink); font-weight: 700; font-size: 22px; }
+  .orbsub { fill: var(--muted); font-size: 11.5px; font-weight: 500; }
+  .dot { fill: #fff; filter: url(#glow); opacity: 0; }
+  .bannerrow { height: 44px; display: flex; justify-content: center; align-items: center; }
+  .banner { transform: translateY(8px); opacity: 0; pointer-events: none;
+    padding: 9px 16px; border-radius: 999px; font-size: var(--fs-base); font-weight: 600; white-space: nowrap;
+    background: rgba(8, 40, 46, 0.85); border: 1px solid rgba(47, 224, 194, 0.55); color: #c9fff3;
+    box-shadow: 0 0 28px rgba(47, 224, 194, 0.35); transition: opacity .35s, transform .35s; }
+  .banner.show { opacity: 1; transform: translateY(0); }
+
+  /* ---------- routing record ---------- */
+  .answer { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -0.01em; margin: 6px 0 4px; }
+  .why { color: #c6d3f0; margin: 0 0 14px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 650;
+    border: 1px solid currentColor; background: rgba(255, 255, 255, 0.04); }
+  .b-local { color: var(--route-local); }
+  .b-paid { color: var(--route-paid); }
+  .b-inhouse { color: var(--route-inhouse); }
+  .b-warn { color: var(--warn); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: var(--fs-base); }
   dt { color: var(--muted); } dd { margin: 0; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); }
-  .error { color: var(--bad); font-weight: 600; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 14px 0; }
-  .tile { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-  .tile b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
-  .tile span { color: var(--muted); font-size: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; }
+  .cardsub { margin: -6px 0 14px; color: var(--muted); font-size: var(--fs-sm); }
+  .error { color: var(--danger); font-weight: 600; }
+  .fade { animation: fadein .45s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
+
+  /* ---------- replay ---------- */
+  .rhead { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .rhead .grow { flex: 1; color: var(--muted); font-size: var(--fs-sm); }
+  .rhead select { padding: 7px 10px; }
+  .rhead button.start { border: 0; font-weight: 650; color: #fff; background: var(--grad-primary); box-shadow: var(--glow-primary); }
+  .tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+  .tile { padding: 14px 16px; border-radius: 16px; background: rgba(8, 20, 52, 0.55); border: 1px solid var(--glass-edge); }
+  .tile b { display: block; font-size: var(--fs-xl); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; transition: color .3s; }
+  .tile span { color: var(--muted); font-size: var(--fs-xs); }
+  .tile.bump b { animation: bump .5s ease; }
+  @keyframes bump { 30% { color: #fff; text-shadow: 0 0 14px rgba(140, 180, 255, 0.9); } }
+  .race { display: grid; gap: 10px; margin: 4px 0 18px; }
+  .lane { display: grid; grid-template-columns: 190px 1fr 92px; align-items: center; gap: 12px; font-size: var(--fs-base); }
+  .track { height: 14px; border-radius: 999px; background: rgba(8, 20, 52, 0.7); border: 1px solid var(--glass-edge); overflow: hidden; }
+  .bar { height: 100%; width: 0; border-radius: 999px; transition: width .6s cubic-bezier(.3, .8, .3, 1); }
+  .bar.router { background: linear-gradient(90deg, #3d6ff0, #5cc8ff); }
+  .bar.opus { background: linear-gradient(90deg, #c8642e, #ffa25f); }
+  .lane .v { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+  table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(130, 170, 255, 0.10); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: var(--fs-xs); letter-spacing: 0.08em; text-transform: uppercase; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .yes { color: var(--ok); font-weight: 700; } .no { color: var(--bad); font-weight: 700; }
-  footer { max-width: 1280px; margin: 0 auto; padding: 0 28px 24px; color: var(--muted); font-size: 12px; }
-  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  tr.new { animation: fadein .5s ease; }
+  .yes { color: var(--teal); font-weight: 700; } .no { color: var(--red); font-weight: 700; }
+  footer { max-width: 1360px; margin: 0 auto; padding: 4px 36px 30px; color: var(--dim); font-size: var(--fs-xs); }
+  .scrollx { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .scrollx:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 12px; }
+  .swipe { display: none; margin: 4px 6px 0; color: var(--muted); font-size: var(--fs-xs); }
+  .stack, .card { min-width: 0; }   /* a grid item may shrink below its content; wide content scrolls instead */
+  @media (max-width: 980px) { main { grid-template-columns: minmax(0, 1fr); } .tiles { grid-template-columns: repeat(2, 1fr); } .lane { grid-template-columns: 120px 1fr 80px; } }
+  @media (max-width: 640px) {
+    header { flex-wrap: wrap; padding: 14px 18px; gap: 10px; }
+    .brand { white-space: nowrap; }
+    .keywrap { flex: 1 1 100%; justify-items: stretch; }
+    .key { flex: 1 1 100%; }
+    .key input { flex: 1; width: auto; min-width: 0; }
+    main { padding: 18px 14px 14px; gap: 16px; }
+    .stack { gap: 16px; }
+    .card { padding: 16px; border-radius: 18px; }
+    svg.map { min-width: 720px; }        /* keeps the map's labels readable; the card scrolls instead */
+    .swipe { display: block; }
+    .banner { white-space: normal; text-align: center; }
+    .bannerrow { height: auto; min-height: 44px; }
+    .lane { grid-template-columns: 96px 1fr 70px; font-size: var(--fs-sm); }
+    table { min-width: 560px; }
+    .rhead .grow { flex: 1 1 100%; order: 3; }   /* the explanation gets its own line */
+    th:nth-child(2), td:nth-child(2) { min-width: 180px; }
+    footer { padding: 4px 18px 24px; }
+  }
+  /* Touch screens: every control at least 44 px tall with at least 8 px between neighbours.
+     Mouse and trackpad users keep the compact layout (the web minimum is 24 px). */
+  .toggle { min-height: 28px; }
+  .toggle input { width: 20px; height: 20px; }
+  @media (pointer: coarse) {
+    button, select, .key input { min-height: 44px; }
+    .chips { gap: 8px; }
+    .chip { padding: 10px 14px; }
+    .seg { gap: 6px; }
+    .seg button { min-height: 44px; }
+    .toggle { min-height: 44px; }
+    .toggle input { width: 24px; height: 24px; }
+    .rhead { gap: 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+
+  /* ================= redesign layer (tasteskill: software kind, sharp radius, product-led hero) ================= */
+  :root { --r-lg: 12px; --r-md: 8px; --wrap: 1240px; --pad: 32px; }
+  .wrap { width: 100%; max-width: var(--wrap); margin-inline: auto; padding-inline: var(--pad); }
+  .skip { position: absolute; left: 12px; top: -48px; z-index: 10; padding: 10px 14px; border-radius: var(--r-md); background: var(--blue); color: #fff; text-decoration: none; }
+  .skip:focus { top: 12px; }
+  header.wrap { padding-block: 18px; }
+  main { display: block; max-width: none; margin: 0; padding: 0; }
+  .card { border-radius: var(--r-lg); }
+  .card h3 { margin: 0 0 14px; font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  button, input[type=password], input[type=text], textarea, select { border-radius: var(--r-md); }
+  .seg { border-radius: 10px; } .seg button { border-radius: 7px; }
+  .msg { border-radius: 10px; } .msg.me { border-bottom-right-radius: 3px; } .msg.bot { border-bottom-left-radius: 3px; }
+  .chip { border-radius: var(--r-md); }
+  .tile { border-radius: 10px; }
+  button:hover:not(:disabled) { transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+
+  /* hero: the copy on the left, the product itself on the right */
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 540px); gap: 56px; align-items: center;
+    text-align: left; padding-block: 40px 72px; min-height: min(calc(100vh - 80px), 820px); }
+  .kicker { display: inline-flex; align-items: center; gap: 10px; margin: 0 0 18px; font-size: var(--fs-sm); font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: #bcd0ff; }
+  .live { animation-duration: 2.4s; }
+  h1 { margin: 0 0 18px; font-size: clamp(36px, 4.6vw, 62px); line-height: 1.04; letter-spacing: -0.03em; }
+  .sub { margin: 0; max-width: 520px; font-size: 18px; line-height: 1.55; }
+  .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 32px 0 22px; max-width: 540px;
+    border-top: 1px solid var(--line); }
+  .facts div { padding: 16px 16px 0 0; }
+  .facts div + div { padding-left: 16px; border-left: 1px solid var(--line); }
+  .facts dt { font-size: 34px; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .facts dd { margin: 4px 0 0; color: var(--muted); font-size: var(--fs-sm); line-height: 1.35; }
+  .models { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+
+  .app-frame { position: relative; border-radius: 16px; overflow: hidden; background: rgba(9, 20, 52, 0.78);
+    border: 1px solid rgba(130, 170, 255, 0.24); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 40px 100px rgba(0, 6, 30, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.02) inset, 0 0 60px rgba(79, 140, 255, 0.12); }
+  .frame-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px;
+    border-bottom: 1px solid var(--line); background: rgba(14, 30, 72, 0.55); }
+  .frame-title { font-weight: 650; font-size: var(--fs-base); }
+  .frame-live { font-size: var(--fs-xs); color: var(--teal); font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
+  .frame-body { padding: 16px 18px 18px; }
+  .app-frame .chat { min-height: 220px; max-height: 320px; }
+  .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+  .composer textarea { min-height: 52px; height: 52px; }
+  .composer .go { width: auto; margin: 0; padding: 0 22px; height: 52px; }
+  .frame-settings { padding: 14px 18px 16px; border-top: 1px solid var(--line); background: rgba(6, 14, 38, 0.55); }
+  .settings-title { margin: 0 0 10px; font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .settings-title span { text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+  .settings-row .block { margin: 0; }
+  .settings-row .seg { flex: 1 1 260px; }
+  .settings-row .toggle { margin: 0; }
+  .frame-settings .hint { margin-top: 8px; }
+
+  /* sections below the hero */
+  .band { padding-block: 72px 24px; }
+  .sec { margin: 0 0 10px; font-size: clamp(26px, 2.6vw, 34px); letter-spacing: -0.02em; font-weight: 700; }
+  .lede { margin: 0 0 28px; max-width: 680px; color: var(--muted); font-size: var(--fs-lg); line-height: 1.55; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .split #record > .fade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 40px; align-items: start; }
+  .split #record > .fade > dl { grid-column: 2; grid-row: 1 / span 4; }
+  .split #record > .fade > .badge { justify-self: start; }
+  .seg button { white-space: nowrap; }
+  .settings-row .seg { flex: 1 1 300px; }
+  footer.wrap { padding-block: 40px 36px; }
+
+  /* the hero enters once on load */
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+  [data-enter] .hero-copy > * { animation: rise .8s cubic-bezier(.2, .7, .2, 1) both; }
+  [data-enter] .hero-copy > :nth-child(2) { animation-delay: .08s; }
+  [data-enter] .hero-copy > :nth-child(3) { animation-delay: .16s; }
+  [data-enter] .hero-copy > :nth-child(4) { animation-delay: .24s; }
+  [data-enter] .hero-copy > :nth-child(5) { animation-delay: .32s; }
+  [data-enter] .app-frame { animation: rise 1s cubic-bezier(.2, .7, .2, 1) .2s both; }
+
+  @media (max-width: 1080px) {
+    .hero { grid-template-columns: minmax(0, 1fr); gap: 36px; min-height: 0; padding-block: 28px 40px; }
+    .split #record > .fade { grid-template-columns: minmax(0, 1fr); }
+    .split #record > .fade > dl { grid-column: auto; grid-row: auto; margin-top: 8px; }
+  }
+  @media (max-width: 640px) {
+    :root { --pad: 16px; }
+    .hero { padding-block: 16px 28px; gap: 28px; }
+    .sub { font-size: var(--fs-lg); }
+    .facts dt { font-size: 26px; }
+    .band { padding-block: 44px 8px; }
+    .frame-body, .frame-settings { padding-inline: 14px; }
+    .composer .go { padding: 0 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { [data-enter] .hero-copy > *, [data-enter] .app-frame { animation: none !important; } }
 </style>
 </head>
 <body>
-<header>
-  <div>
-    <h1>Cost-aware LLM router</h1>
-    <p>Two local models on this Mac answer first; Claude Opus 5.5 is asked only when they are not trusted. Sensitive data never leaves the Mac.</p>
+<a class="skip" href="#chatpanel">Skip to the chat</a>
+<div class="sky" aria-hidden="true"><div class="halo"></div></div>
+
+<header class="wrap">
+  <div class="brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#8fb6ff"/></svg>
+    Cost-aware Router
   </div>
-  <label>API key <input id="key" type="password" autocomplete="off" placeholder="X-API-Key"></label>
+  <div class="keywrap">
+    <label class="key">Access key <input id="key" type="password" autocomplete="off" placeholder="router access key" aria-describedby="keyError"></label>
+    <p class="keyerr" id="keyError" role="alert" hidden>Enter the access key to send messages.</p>
+  </div>
 </header>
 
 <main>
-  <section>
-    <h2>Ask</h2>
-    <div class="row">
-      <button data-preset="easy">Easy question</button>
-      <button data-preset="ticket">Help-desk ticket</button>
-      <button data-preset="sensitive">Ticket with a card number</button>
-      <button data-preset="hard">Harder question</button>
+  <section class="hero wrap" aria-labelledby="heroTitle" data-enter>
+    <div class="hero-copy">
+      <p class="kicker"><span class="live"></span>AI help-desk router for banks</p>
+      <h1 id="heroTitle">Ask once. <span class="grad">Pay only when it matters.</span></h1>
+      <p class="sub">Two in-house models answer first. Claude Opus is called only when their answer can't be trusted, and personal data never leaves your company.</p>
+      <dl class="facts">
+        <div><dt>66%</dt><dd>cheaper than Opus alone</dd></div>
+        <div><dt>94%</dt><dd>of Opus's accuracy</dd></div>
+        <div><dt>0</dt><dd>personal-data leaks in 252 tests</dd></div>
+      </dl>
+      <p class="models">Running now: gemma3:12b and phi4:14b in-house, Claude Opus 5.5 when needed</p>
     </div>
-    <label class="block" for="q">Question</label>
-    <textarea id="q"></textarea>
-    <label class="block">Type</label>
-    <div class="seg" id="task">
-      <button data-task="choice" aria-pressed="true">Multiple choice</button>
-      <button data-task="label" aria-pressed="false">Help-desk intent (77 labels)</button>
-    </div>
-    <div id="choiceBox">
-      <label class="block">Options (A–D)</label>
-      <div class="options">
-        <input type="text" id="o0" aria-label="Option A"><input type="text" id="o1" aria-label="Option B">
-        <input type="text" id="o2" aria-label="Option C"><input type="text" id="o3" aria-label="Option D">
+
+    <div class="app-frame" id="chatpanel">
+      <div class="frame-bar"><span class="frame-title">Help-desk chat</span><span class="frame-live">Live</span></div>
+      <div class="frame-body">
+        <div class="chat" id="chat" aria-live="polite">
+          <div class="msg bot">Hi! Tell me what you need help with.</div>
+        </div>
+        <div class="chips" aria-label="Suggested messages">
+          <button class="chip" data-preset="simple">My card expires soon</button>
+          <button class="chip" data-preset="tricky">When will I get my new card?</button>
+          <button class="chip" data-preset="sensitive">My card 4111… was charged twice</button>
+          <button class="chip" data-preset="impatient">Hurry and refund me, I am waiting</button>
+        </div>
+        <div class="composer">
+          <textarea id="q" aria-label="Your message" placeholder="Type your message…"></textarea>
+          <button class="go" id="send">Send</button>
+        </div>
+      </div>
+      <div class="frame-settings" aria-labelledby="settingsTitle">
+        <p class="settings-title" id="settingsTitle">Router settings <span>· set by your company</span></p>
+        <div class="settings-row">
+          <span class="block" id="modeLabel">Mode</span>
+          <div class="seg" id="mode" role="group" aria-labelledby="modeLabel" aria-describedby="modeHint">
+            <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
+            <button data-mode="balanced" aria-pressed="true">Balanced</button>
+            <button data-mode="best_quality" aria-pressed="false">Best quality</button>
+          </div>
+          <label class="toggle"><input type="checkbox" id="sensitive"> Mark as sensitive</label>
+        </div>
+        <p class="hint" id="modeHint"></p>
       </div>
     </div>
-    <p class="hint" id="labelHint" hidden>The router picks one of the 77 Banking77 intents.</p>
-    <label class="block">Mode</label>
-    <div class="seg" id="mode">
-      <button data-mode="cheapest" aria-pressed="false">Cheapest</button>
-      <button data-mode="balanced" aria-pressed="true">Balanced</button>
-      <button data-mode="best_quality" aria-pressed="false">Best quality</button>
-    </div>
-    <p class="hint" id="modeHint"></p>
-    <div class="row">
-      <label><input type="checkbox" id="sensitive"> Mark as sensitive (must stay on the Mac)</label>
-    </div>
-    <div class="row"><button class="primary" id="send">Send</button><span id="sendStatus" class="hint"></span></div>
   </section>
 
-  <section>
-    <h2>Routing record</h2>
-    <div id="record"><p class="empty">Send a question to see how the router handled it.</p></div>
+  <section class="band wrap" aria-labelledby="behindTitle">
+    <h2 class="sec" id="behindTitle">Behind the scenes</h2>
+    <p class="lede">Every message takes one of three routes. The lit path is the one yours took, and the record is kept for audit.</p>
+    <div class="split">
+      <div class="card mapcard">
+        <div class="maphead"><h3>How the router decided</h3><div class="status" id="status" role="status" aria-live="polite">Ready</div></div>
+        <div class="scrollx" id="mapscroll" tabindex="0" role="region" aria-label="Routing map, scrolls sideways on small screens">
+      <svg class="map" id="map" viewBox="0 50 900 300" role="img" aria-label="Live map of the routing decision">
+        <defs>
+          <filter id="glow" filterUnits="userSpaceOnUse" x="-20" y="0" width="940" height="420"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <radialGradient id="orbfill" cx="50%" cy="45%" r="60%"><stop offset="0%" stop-color="#9cc0ff" stop-opacity="0.95"/><stop offset="45%" stop-color="#3f73ff" stop-opacity="0.55"/><stop offset="100%" stop-color="#0a1a4a" stop-opacity="0"/></radialGradient>
+          <linearGradient id="ringgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5cc8ff"/><stop offset="100%" stop-color="#5ef0d0"/></linearGradient>
+        </defs>
+
+        <path id="w-qp" class="wire" d="M170 200H212"/>
+        <path id="w-pj1" class="wire" d="M362 200C385 200 382 128 404 128"/>
+        <path id="w-pj2" class="wire" d="M362 200C385 200 382 272 404 272"/>
+        <path id="w-pby" class="wire bypass" d="M362 200H586"/>
+        <path id="w-j1o" class="wire" d="M554 128C578 128 572 200 586 200"/>
+        <path id="w-j2o" class="wire" d="M554 272C578 272 572 200 586 200"/>
+        <path id="w-oL" class="wire" d="M694 200C718 200 714 86 738 86"/>
+        <path id="w-oS" class="wire" d="M694 200H738"/>
+        <path id="w-oK" class="wire" d="M694 200C718 200 714 314 738 314"/>
+        <circle class="dot" id="dot" r="4.5"><animateMotion id="dotmove" dur="0.8s" begin="indefinite" fill="freeze" path="M0 0"/></circle>
+
+        <g class="node" id="n-q"><rect x="20" y="176" width="150" height="48" rx="10"/>
+          <circle class="icbg" cx="46" cy="200" r="14"/><circle class="ic" cx="46" cy="196" r="4"/><path class="ic" d="M38 207c2-4 14-4 16 0"/>
+          <text x="68" y="198">Message</text><text class="s" x="68" y="213">from a customer</text></g>
+        <g class="node" id="n-p"><rect x="212" y="176" width="150" height="48" rx="10"/>
+          <circle class="icbg" cx="238" cy="200" r="14"/><path class="ic" d="M238 191l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/>
+          <text x="260" y="198">Privacy</text><text class="s" x="260" y="213" id="t-p">personal data?</text></g>
+        <g class="node" id="n-j1"><rect x="404" y="104" width="150" height="48" rx="10"/>
+          <circle class="icbg" cx="430" cy="128" r="14"/><rect class="ic" x="423" y="122" width="14" height="10" rx="2"/><path class="ic" d="M427 135h6"/>
+          <text x="452" y="126">gemma3:12b</text><text class="s" x="452" y="141" id="t-j1">local model 1</text></g>
+        <g class="node" id="n-j2"><rect x="404" y="248" width="150" height="48" rx="10"/>
+          <circle class="icbg" cx="430" cy="272" r="14"/><rect class="ic" x="423" y="266" width="14" height="10" rx="2"/><path class="ic" d="M427 279h6"/>
+          <text x="452" y="270">phi4:14b</text><text class="s" x="452" y="285" id="t-j2">local model 2</text></g>
+
+        <g id="orb">
+          <circle class="orb-glow" cx="640" cy="200" r="70" fill="url(#orbfill)"/>
+          <circle cx="640" cy="200" r="44" fill="rgba(8,20,56,0.92)" stroke="rgba(150,185,255,0.35)"/>
+          <circle class="ring-track" cx="640" cy="200" r="50"/>
+          <circle class="ring" id="ring" cx="640" cy="200" r="50" stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+          <g class="spin"><circle cx="640" cy="200" r="58" fill="none" stroke="#7fb0ff" stroke-width="2" stroke-dasharray="44 320" stroke-linecap="round"/></g>
+          <text class="orbsub" x="640" y="186" text-anchor="middle">policy</text>
+          <text class="orbtext" id="t-orb" x="640" y="209" text-anchor="middle">P</text>
+          <text class="orbsub" id="t-orbsub" x="640" y="226" text-anchor="middle">waiting</text>
+        </g>
+
+        <g class="node" id="n-L" style="--nc: #4f8cff"><rect x="738" y="62" width="150" height="48" rx="10"/>
+          <circle class="icbg" cx="764" cy="86" r="14"/><path class="ic" d="M757 86l5 5 9-10"/>
+          <text x="786" y="84">Your company</text><text class="s" x="786" y="99" id="t-L">answered, free</text></g>
+        <g class="node" id="n-S" style="--nc: #ffa25f"><rect x="738" y="176" width="150" height="48" rx="10"/>
+          <circle class="icbg" cx="764" cy="200" r="14"/><path class="ic" d="M764 191l2.5 6 6 .5-4.5 4 1.5 6-5.5-3.5-5.5 3.5 1.5-6-4.5-4 6-.5z"/>
+          <text x="786" y="198">Claude Opus</text><text class="s" x="786" y="213" id="t-S">paid, external</text>
+          <g class="lock"><circle cx="884" cy="178" r="11" fill="#ff6b81"/><rect x="879" y="177" width="10" height="7.5" rx="1.5" fill="#fff"/><path d="M881.2 177v-2.4a2.8 2.8 0 0 1 5.6 0v2.4" fill="none" stroke="#fff" stroke-width="1.6"/></g></g>
+        <g class="node" id="n-K" style="--nc: #2fe0c2"><rect x="738" y="290" width="150" height="48" rx="10"/>
+          <circle class="icbg" cx="764" cy="314" r="14"/><path class="ic" d="M764 305l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8v-5z"/><path class="ic" d="M761 313l2 2 4-4"/>
+          <text x="786" y="312">Kept in-house</text><text class="s" x="786" y="327" id="t-K">abstained safely</text></g>
+      </svg>
+        </div>
+        <p class="swipe">Swipe sideways to see the whole route</p>
+        <div class="bannerrow"><div class="banner" id="banner">Personal data detected · nothing left your company</div></div>
+      </div>
+      <div class="card">
+        <h3>Routing record</h3>
+        <div id="record"><p class="empty">Send a message and its receipt appears here: who answered, why, and what it cost.</p></div>
+      </div>
+    </div>
   </section>
 
-  <section class="wide">
-    <h2>Replay labelled questions</h2>
-    <div class="row">
-      <label>Questions <select id="count"><option>10</option><option selected>20</option><option>40</option></select></label>
-      <span class="hint">Uses the mode selected above. Questions come from the held-out test split, with known answers.</span>
-      <button class="primary" id="start">Start replay</button><button id="stop" disabled>Stop</button>
-    </div>
+  <section class="band wrap" aria-labelledby="testTitle">
+    <h2 class="sec" id="testTitle">Live test: router vs Opus-only</h2>
+    <p class="lede">Saved questions with known answers go through the router in the mode set above. It keeps score: how many it got right, how often it paid for Opus, and what it spent next to sending every question to Opus.</p>
+    <div class="card">
+      <div class="rhead">
+        <label>Questions <select id="count"><option>10</option><option selected>20</option><option>40</option></select></label>
+        <span class="grow"></span>
+        <button class="start" id="start">Start test</button><button id="stop" disabled>Stop</button>
+      </div>
     <div class="tiles">
-      <div class="tile"><b id="t-n">0</b><span>requests</span></div>
-      <div class="tile"><b id="t-acc">–</b><span>correct (of answered)</span></div>
-      <div class="tile"><b id="t-esc">–</b><span>sent to Claude Opus</span></div>
-      <div class="tile"><b id="t-abs">–</b><span>abstained</span></div>
-      <div class="tile"><b id="t-cost">$0.0000</b><span>router cost</span></div>
-      <div class="tile"><b id="t-opus">$0.0000</b><span>Opus for every request (est.)</span></div>
-      <div class="tile"><b id="t-lat">–</b><span>median latency</span></div>
+      <div class="tile" id="tl-n"><b id="t-n">0</b><span>questions</span></div>
+      <div class="tile" id="tl-acc"><b id="t-acc">–</b><span>correct (of answered)</span></div>
+      <div class="tile" id="tl-esc"><b id="t-esc">–</b><span>sent to Claude Opus</span></div>
+      <div class="tile" id="tl-abs"><b id="t-abs">–</b><span>abstained</span></div>
+      <div class="tile" id="tl-lat"><b id="t-lat">–</b><span>median latency</span></div>
     </div>
+    <div class="race">
+      <div class="lane"><span>Router (actual)</span><div class="track"><div class="bar router" id="bar-r"></div></div><span class="v" id="t-cost">$0.0000</span></div>
+      <div class="lane"><span>Opus for every question</span><div class="track"><div class="bar opus" id="bar-o"></div></div><span class="v" id="t-opus">$0.0000</span></div>
+    </div>
+    <div class="scrollx" tabindex="0" role="region" aria-label="Live test results, scrolls sideways on small screens">
     <table>
-      <thead><tr><th>#</th><th>Question</th><th>What happened</th><th>Answer</th><th>Correct</th><th class="num">Cost</th><th class="num">Latency</th></tr></thead>
-      <tbody id="log"></tbody>
+      <thead><tr><th>#</th><th>Question</th><th>Route</th><th>Answer</th><th>Correct</th><th class="num">Cost</th><th class="num">Latency</th></tr></thead>
+      <tbody id="log"><tr class="emptyrow"><td colspan="7">No results yet. Press Start test to send saved questions through the router.</td></tr></tbody>
     </table>
+    </div>
+    </div>
   </section>
 </main>
-<footer>
-  Costs are the router's own accounting of real API usage. "Opus for every request" assumes $0.0027 per question, the mean measured in the held-out evaluation (12 Nov).
-  Replay questions: MMLU (MIT licence) and Banking77 (CC BY 4.0). The API key you type is sent only to this router and is not stored.
+<footer class="wrap">
+Costs are the router's own accounting of real API usage. "Opus for every question" assumes $0.0027 per question, the mean measured in the held-out evaluation.
+  Chat replies are example texts prepared for each request type; the router decides which one fits.
+  Test questions: MMLU (MIT licence) and Banking77 (CC BY 4.0). The access key you type is sent only to this router and is not stored.
 </footer>
 
 <script>
 "use strict";
 const OPUS_PER_CALL = 0.0027;
+const RING = 314.16;
 const MODE_HINTS = {
-  cheapest: "Local answer only, never paid. Fast, but unverified when the local models disagree.",
-  balanced: "Local answer when it is trusted (models agree / policy confident); otherwise ask Claude Opus.",
-  best_quality: "Always ask Claude Opus (sensitive questions still stay on the Mac)."
+  cheapest: "Local answer only, never paid. Unverified when the two models disagree.",
+  balanced: "In-house answer when it is trusted, otherwise Claude Opus.",
+  best_quality: "Straight to Claude Opus (sensitive questions still stay inside your company)."
 };
+// reason -> [explanation, badge class, short route, outcome node]
 const WHY = {
-  juniors_agreed: ["Both local models gave the same answer, so it was accepted without a paid call.", "b-ok", "answered locally"],
-  policy_accepted: ["The policy model was confident the local answer is right, so no paid call was needed.", "b-ok", "answered locally"],
-  cheapest_unverified: ["Cheapest mode: the local answer was returned without verification.", "b-warn", "local, unverified"],
-  escalated_disagreement: ["The local models disagreed, so the question went to Claude Opus.", "b-paid", "sent to Claude Opus"],
-  escalated_low_confidence: ["The policy model was not confident in the local answer, so the question went to Claude Opus.", "b-paid", "sent to Claude Opus"],
-  best_quality_mode: ["Best-quality mode: the question went straight to Claude Opus.", "b-paid", "sent to Claude Opus"],
-  sensitive_disagreement: ["Sensitive data must stay on the Mac and the local models disagreed, so the router abstained instead of sending it out.", "b-local", "kept on the Mac, abstained"],
-  sensitive_low_confidence: ["Sensitive data must stay on the Mac and the local answer was not trusted, so the router abstained instead of sending it out.", "b-local", "kept on the Mac, abstained"],
-  juniors_unreadable: ["Neither local model gave a usable answer.", "b-warn", "abstained"],
-  egress_blocked: ["The egress gateway refused to send sensitive data out.", "b-local", "kept on the Mac, abstained"],
-  budget_exceeded: ["The spend cap is reached, so the router abstained instead of paying.", "b-warn", "abstained (budget)"],
-  senior_unavailable: ["Claude Opus could not be reached, so the router abstained rather than guess.", "b-warn", "abstained"],
-  senior_unreadable: ["Claude Opus's reply could not be read, so the router abstained.", "b-warn", "abstained"]
+  juniors_agreed: ["Both local models gave the same answer, so it was accepted without a paid call.", "b-local", "in-house", "L"],
+  policy_accepted: ["The policy was confident the local answer is right, so no paid call was needed.", "b-local", "in-house", "L"],
+  cheapest_unverified: ["Cheapest mode: the local answer was returned without verification.", "b-warn", "in-house, unverified", "L"],
+  escalated_disagreement: ["The local models disagreed, so the question went to Claude Opus.", "b-paid", "Claude Opus", "S"],
+  escalated_low_confidence: ["The policy wasn't confident in the local answer, so the question went to Claude Opus.", "b-paid", "Claude Opus", "S"],
+  best_quality_mode: ["Best-quality mode: the question went straight to Claude Opus.", "b-paid", "Claude Opus", "S"],
+  sensitive_disagreement: ["Personal data must stay inside your company and the local models disagreed, so the router abstained instead of sending it out.", "b-inhouse", "kept in-house", "K"],
+  sensitive_low_confidence: ["Personal data must stay inside your company and the local answer wasn't trusted, so the router abstained instead of sending it out.", "b-inhouse", "kept in-house", "K"],
+  juniors_unreadable: ["Neither local model gave a usable answer.", "b-warn", "abstained", "K"],
+  egress_blocked: ["The egress gateway refused to send personal data out.", "b-inhouse", "kept in-house", "K"],
+  budget_exceeded: ["The spend cap is reached, so the router abstained instead of paying.", "b-warn", "abstained (budget)", "K"],
+  senior_unavailable: ["Claude Opus could not be reached, so the router abstained rather than guess.", "b-warn", "abstained", "K"],
+  senior_unreadable: ["Claude Opus's reply could not be read, so the router abstained.", "b-warn", "abstained", "K"]
 };
 const $ = (id) => document.getElementById(id);
-const state = { task: "choice", mode: "balanced", labels: [], items: [], running: false };
+const state = { mode: "balanced", labels: [], items: [], running: false };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function el(tag, text, cls) {
   const e = document.createElement(tag);
@@ -168,91 +538,318 @@ function el(tag, text, cls) {
   if (cls) e.className = cls;
   return e;
 }
+
+// ---------------------------------------------------------------- the live map
+const WIRES = ["qp", "pj1", "pj2", "pby", "j1o", "j2o", "oL", "oS", "oK"];
+const NODES = ["q", "p", "j1", "j2", "L", "S", "K"];
+const COLOR = { L: "#4f8cff", S: "#ffa25f", K: "#2fe0c2" };
+function wire(id, cls, color) {
+  const w = $("w-" + id);
+  w.classList.remove("on", "flow", "off");
+  if (cls) w.classList.add(cls);
+  w.style.setProperty("--wc", color || "#4f8cff");
+}
+function node(id, ...cls) {
+  const n = $("n-" + id);
+  n.classList.remove("lit", "busy", "hit", "dim", "bad", "locked");
+  for (const c of cls) n.classList.add(c);
+}
+function setText(id, text) { $(id).textContent = text; }
+function ring(p) { $("ring").style.strokeDashoffset = String(RING * (1 - Math.max(0, Math.min(1, p)))); }
+function status(html) { const s = $("status"); s.replaceChildren(); for (const part of html) s.append(typeof part === "string" ? part : el("b", part.b)); }
+function banner(show, text) { const b = $("banner"); if (text) b.textContent = text; b.classList.toggle("show", show); }
+
+function mapReset() {
+  $("mapscroll").scrollLeft = 0;   // small screens: start each run at the question
+  for (const w of WIRES) wire(w);
+  for (const n of NODES) node(n);
+  $("orb").classList.remove("thinking");
+  ring(0);
+  setText("t-orb", "P"); setText("t-orbsub", "waiting");
+  setText("t-p", "personal data?"); setText("t-j1", "local model 1"); setText("t-j2", "local model 2");
+  setText("t-L", "answered, free"); setText("t-S", "paid, external"); setText("t-K", "abstained safely");
+  banner(false);
+}
+function mapThinking(mode, flagged) {
+  mapReset();
+  node("q", "lit"); wire("qp", "on");
+  node("p", "lit"); setText("t-p", flagged ? "flagged" : "checking…");
+  $("orb").classList.add("thinking"); setText("t-orbsub", "thinking");
+  if (mode === "best_quality" && !flagged) {
+    wire("pby", "flow"); node("j1", "dim"); node("j2", "dim");
+    setText("t-orb", "–"); setText("t-orbsub", "skipped");
+  } else {
+    wire("pj1", "flow"); wire("pj2", "flow");
+    node("j1", "busy"); node("j2", "busy"); setText("t-j1", "thinking…"); setText("t-j2", "thinking…");
+  }
+  status(["Routing your question…"]);
+}
+function travel(pathId, color) {
+  const dot = $("dot"), mv = $("dotmove");
+  mv.setAttribute("path", $(pathId).getAttribute("d"));
+  dot.style.fill = color;
+  dot.style.opacity = "1";
+  try { mv.beginElement(); } catch (e) { /* no SMIL: the lit wire still shows the route */ }
+  setTimeout(() => { dot.style.opacity = "0"; }, 820);
+}
+async function mapResult(out, mode, fast) {
+  const [, , short, outcome] = WHY[out.reason] || ["", "b-warn", out.reason, "K"];
+  const color = COLOR[outcome];
+  const usedJuniors = !(mode === "best_quality" && out.data_class !== "sensitive");
+  const sensitive = out.data_class === "sensitive";
+  setText("t-p", sensitive ? "personal data!" : "none found");
+  if (sensitive) node("p", "lit");
+  if (usedJuniors) {
+    wire("pj1", "on"); wire("pj2", "on");
+    node("j1", "lit"); node("j2", "lit"); setText("t-j1", "answered"); setText("t-j2", "answered");
+    wire("j1o", "on"); wire("j2o", "on");
+  } else {
+    wire("pby", "on");
+  }
+  await sleep(fast ? 120 : 380);
+  $("orb").classList.remove("thinking");
+  if (out.policy_p !== null && out.policy_p !== undefined) {
+    ring(out.policy_p); setText("t-orb", out.policy_p.toFixed(2)); setText("t-orbsub", "P(correct)");
+  } else if (!usedJuniors) {
+    ring(0); setText("t-orb", "–"); setText("t-orbsub", "skipped");
+  } else {
+    const agreed = out.reason === "juniors_agreed" || out.reason === "cheapest_unverified";
+    ring(agreed ? 1 : 0.15); setText("t-orb", agreed ? "agree" : "differ"); setText("t-orbsub", "rule");
+  }
+  await sleep(fast ? 160 : 520);
+  for (const o of ["L", "S", "K"]) { if (o !== outcome) { wire("o" + o, "off"); node(o, "dim"); } }
+  wire("o" + outcome, "on", color);
+  travel("w-o" + outcome, color);
+  await sleep(fast ? 200 : 650);
+  node(outcome, "lit", "hit");
+  if (outcome === "L") setText("t-L", out.verified ? `free · $${out.cost_usd.toFixed(4)}` : "unverified · $0");
+  if (outcome === "S") setText("t-S", `paid · $${out.cost_usd.toFixed(4)}`);
+  if (outcome === "K") setText("t-K", sensitive ? "data stayed here" : "abstained safely");
+  if (sensitive) { node("S", "locked"); banner(true, "Personal data detected · nothing left your company"); }
+  status([short === "Claude Opus" ? "Escalated to " : "Route: ", { b: short }, ` · ${(out.latency_ms / 1000).toFixed(1)} s`]);
+  const sc = $("mapscroll");
+  if (sc.scrollWidth > sc.clientWidth + 4) {   // only on small screens, where the map scrolls
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    sc.scrollTo({ left: sc.scrollWidth, behavior: calm ? "auto" : "smooth" });
+  }
+}
+function mapError(code, message) {
+  $("orb").classList.remove("thinking");
+  if (code === "models_unavailable") { node("j1", "bad"); node("j2", "bad"); setText("t-j1", "unavailable"); setText("t-j2", "unavailable"); }
+  status([{ b: "Not routed: " }, message]);
+}
+
+// ---------------------------------------------------------------- the form
 function pressed(groupId, attr, value) {
   for (const b of $(groupId).querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset[attr] === value));
 }
-function setTask(task) {
-  state.task = task; pressed("task", "task", task);
-  $("choiceBox").hidden = task !== "choice"; $("labelHint").hidden = task !== "label";
-}
 function setMode(mode) { state.mode = mode; pressed("mode", "mode", mode); $("modeHint").textContent = MODE_HINTS[mode]; }
-function setOptions(opts) { for (let i = 0; i < 4; i++) $("o" + i).value = opts[i] || ""; }
-
+// Real tickets from the held-out test split; the comments give what the evaluation recorded.
+function ticket(text) { $("q").value = text; $("sensitive").checked = false; send(); }
 const PRESETS = {
-  easy: () => { setTask("choice"); $("q").value = "Which planet is closest to the Sun?"; setOptions(["Venus", "Mercury", "Earth", "Mars"]); $("sensitive").checked = false; },
-  ticket: () => { setTask("label"); $("q").value = "I was charged twice for the same coffee this morning."; $("sensitive").checked = false; },
-  sensitive: () => { setTask("label"); $("q").value = "My card 4111 1111 1111 1111 was charged twice, please refund it."; $("sensitive").checked = false; },
-  hard: () => {
-    // a word problem the local models often disagree on, so the senior is usually asked
-    const it = state.items.find((x) => x.id === "mmlu-test-2220") || state.items.find((x) => x.task_type === "choice");
-    if (!it) return;
-    setTask("choice"); $("q").value = it.question; setOptions(it.options); $("sensitive").checked = false;
-  }
+  simple: () => ticket("My card expires soon"),                // both local models: card_about_to_expire
+  tricky: () => ticket("When will I get my new card?"),        // split: card_delivery_estimate vs card_arrival
+  sensitive: () => ticket("My card 4111 1111 1111 1111 was charged twice, please refund it."),
+  impatient: () => ticket("Hurry and refund me, I am waiting") // split: request_refund vs Refund_not_showing_up
 };
-
-function body(question, task, options, sensitive) {
-  return { question, task_type: task, options: task === "choice" ? options : state.labels, mode: state.mode, sensitive };
+function body(question, options, sensitive) {
+  // No task type is sent: the router reads four options as a question with options (the live test's
+  // exam questions) and the request-type list as a customer message.
+  return { question, options: options.length ? options : state.labels, mode: state.mode, sensitive };
+}
+class ApiError extends Error { constructor(code, message) { super(message); this.code = code; } }
+function keyProblem(on) {   // the error is shown at the key field, not only in the chat
+  const k = $("key"); k.setAttribute("aria-invalid", String(on)); $("keyError").hidden = !on;
+  if (on) k.focus();
 }
 async function call(payload) {
+  if (!$("key").value) { keyProblem(true); throw new ApiError("unauthorized", "Enter the access key at the top right."); }
   const r = await fetch("/v1/answer", { method: "POST", headers: { "Content-Type": "application/json", "X-API-Key": $("key").value }, body: JSON.stringify(payload) });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
     const err = (data && data.error) || {};
-    throw new Error(r.status === 401 ? "Enter the API key at the top right." : `${r.status} ${err.code || ""}: ${err.message || "request failed"}`);
+    if (r.status === 401) { keyProblem(true); throw new ApiError("unauthorized", "That access key was not accepted."); }
+    throw new ApiError(err.code || String(r.status), `${r.status} ${err.code || ""}: ${err.message || "request failed"}`);
   }
   return data;
 }
 function answerText(out, payload) {
-  if (out.answer === null || out.answer === undefined) return "No answer (abstained)";
-  if (payload.task_type === "choice") {
-    const i = "ABCD".indexOf(out.answer);
-    return i >= 0 ? `${out.answer}: ${payload.options[i]}` : out.answer;
-  }
-  return out.answer;
+  if (out.answer === null || out.answer === undefined) return "No answer · abstained";
+  if (out.task_type === "choice") { const i = "ABCD".indexOf(out.answer); return i >= 0 ? `${out.answer} · ${payload.options[i]}` : out.answer; }
+  return cap(pretty(out.answer));
 }
+function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
 function showRecord(out, payload) {
   const box = $("record"); box.replaceChildren();
+  const wrap = el("div", undefined, "fade");
   const [why, cls, short] = WHY[out.reason] || [out.reason, "b-warn", out.reason];
-  box.append(el("span", short, "badge " + cls));
-  if (out.data_class === "sensitive") box.append(" ", el("span", "sensitive", "badge b-local"));
-  box.append(el("div", answerText(out, payload), "answer"), el("p", why, "why"));
+  wrap.append(el("span", short, "badge " + cls));
+  if (out.data_class === "sensitive") wrap.append(" ", el("span", "personal data", "badge b-inhouse"));
+  wrap.append(el("div", answerText(out, payload), "answer"), el("p", why, "why"));
   const dl = el("dl");
+  const readAs = out.task_type === "choice" ? "question with options"
+    : out.task_type === "label" ? `customer message (one of ${state.labels.length} request types)` : "–";
   const rows = [
-    ["Reason code", out.reason], ["Answered by", out.model || "–"], ["Verified", out.verified ? "yes" : "no"],
-    ["Paid call", out.escalated ? "yes" : "no"], ["Data class", out.data_class],
-    ["Cost", "$" + out.cost_usd.toFixed(4)], ["Latency", out.latency_ms + " ms"],
-    ["Decided by", (out.versions && out.versions.policy) || "–"],
+    ["Read as", readAs], ["Answered by", out.model || "–"], ["Cost", "$" + out.cost_usd.toFixed(4)], ["Latency", out.latency_ms + " ms"],
+    ["Verified", out.verified ? "yes" : "no"], ["Decided by", (out.versions && out.versions.policy) || "–"],
     ["P(local answer correct)", out.policy_p === null || out.policy_p === undefined ? "–" : out.policy_p.toFixed(2)],
-    ["Request ID", out.request_id]
+    ["Reason code", out.reason], ["Request ID", out.request_id]
   ];
   for (const [k, v] of rows) dl.append(el("dt", k), el("dd", String(v)));
-  box.append(dl);
+  wrap.append(dl); box.append(wrap);
 }
-function showError(msg) { const box = $("record"); box.replaceChildren(el("p", msg, "error")); }
+function showError(msg) { $("record").replaceChildren(el("p", msg, "error")); }
+
+// ---------------------------------------------------------------- chat
+// Example prepared replies, one per request type. A bank writes its own; the router only decides which
+// one fits. Kept as plain JSON so tests/test_demo.py can check every request type has one.
+const REPLIES = {
+ "Refund_not_showing_up": "Refunds can take a few working days to appear after the shop sends them. If it still isn't there after that, send us the receipt and we'll trace it.",
+ "activate_my_card": "You can activate your new card in the app under Cards, or by making a chip-and-PIN payment.",
+ "age_limit": "You need to be 18 or over to open an account in your own name.",
+ "apple_pay_or_google_pay": "You can add your card to Apple Pay or Google Pay from the app under Cards, then Add to wallet.",
+ "atm_support": "You can use your card at most ATMs that show the Visa or Mastercard logo. Your limits are in the app under Cards.",
+ "automatic_top_up": "You can turn on automatic top-up in the app under Top up and choose the amount and the trigger balance.",
+ "balance_not_updated_after_bank_transfer": "Bank transfers can take a little while to show in your balance. If it's taking longer than expected, send us the transfer details.",
+ "balance_not_updated_after_cheque_or_cash_deposit": "Cheque and cash deposits are checked before they reach your balance. If yours hasn't appeared, send us the deposit details.",
+ "beneficiary_not_allowed": "Some recipients can't be added for security reasons. Check the details, and if it still fails, send us the name and bank of the recipient.",
+ "cancel_transfer": "A transfer can be cancelled in the app while it's still pending. Once it's sent, we'll ask the receiving bank to return it.",
+ "card_about_to_expire": "We'll send your new card before the old one expires. Check that your address in the app is up to date.",
+ "card_acceptance": "Your card works wherever Visa or Mastercard is accepted, in shops and online.",
+ "card_arrival": "New cards usually take a few working days to arrive. You can follow yours in the app under Cards.",
+ "card_delivery_estimate": "You can see the expected delivery date for your card in the app under Cards.",
+ "card_linking": "You can link a card you already have in the app under Cards, then Link a card.",
+ "card_not_working": "Check that the card isn't frozen in the app. If it still doesn't work, freeze it and order a replacement there.",
+ "card_payment_fee_charged": "Some card payments carry a fee, shown in the app's fee list. Send us the payment details and we'll check this one.",
+ "card_payment_not_recognised": "Freeze your card in the app now, then send us the payment details so we can look into it.",
+ "card_payment_wrong_exchange_rate": "Card payments in another currency use the rate on the day they settle. Send us the payment and we'll check the rate used.",
+ "card_swallowed": "Freeze the card in the app and order a replacement there. The ATM's bank will destroy the old card.",
+ "cash_withdrawal_charge": "Some cash withdrawals carry a fee, shown in the app's fee list. Send us the withdrawal details and we'll check this one.",
+ "cash_withdrawal_not_recognised": "Freeze your card in the app now, then send us the withdrawal details so we can look into it.",
+ "change_pin": "You can change your PIN at most ATMs, or view it in the app under Cards.",
+ "compromised_card": "Freeze your card in the app straight away and order a new one there. We'll help with any payments you don't recognise.",
+ "contactless_not_working": "Contactless sometimes needs one chip-and-PIN payment first. If it still fails, tell us where it happened.",
+ "country_support": "You can see the countries we support in the app under Help, then Where we work.",
+ "declined_card_payment": "A payment can be declined because of your balance, a limit or a security check. The app shows the reason under the payment.",
+ "declined_cash_withdrawal": "A withdrawal can be declined because of your balance, a limit or the ATM itself. The app shows the reason under the withdrawal.",
+ "declined_transfer": "A transfer can be declined because of your balance, a limit or a security check. The app shows the reason under the transfer.",
+ "direct_debit_payment_not_recognised": "You can cancel a direct debit in the app. Send us the payment details and we'll help you get the money back.",
+ "disposable_card_limits": "Disposable virtual cards follow your account limits and change their details after each payment.",
+ "edit_personal_details": "You can update most personal details in the app under Profile. Some changes need a quick identity check.",
+ "exchange_charge": "Some currency exchanges carry a fee, shown in the app before you confirm.",
+ "exchange_rate": "The app shows the current exchange rate before you exchange or pay in another currency.",
+ "exchange_via_app": "You can exchange money between currencies in the app under Accounts, then Exchange.",
+ "extra_charge_on_statement": "Send us the line on your statement and we'll explain what the charge is.",
+ "failed_transfer": "If a transfer fails, the money comes back to your account. The app shows the reason under the transfer.",
+ "fiat_currency_support": "You can see the currencies you can hold and send in the app under Accounts.",
+ "get_disposable_virtual_card": "You can create a disposable virtual card in the app under Cards, then New virtual card.",
+ "get_physical_card": "You can order a physical card in the app under Cards, then Order card.",
+ "getting_spare_card": "You can order an extra card in the app under Cards.",
+ "getting_virtual_card": "You can create a virtual card in the app under Cards, then New virtual card.",
+ "lost_or_stolen_card": "Freeze your card in the app now and order a replacement there. Tell us about any payments you don't recognise.",
+ "lost_or_stolen_phone": "Sign in from another device and log out of the lost phone, or contact us and we'll lock your account.",
+ "order_physical_card": "You can order a physical card in the app under Cards, then Order card.",
+ "passcode_forgotten": "Tap Forgot passcode on the sign-in screen and follow the steps to set a new one.",
+ "pending_card_payment": "Card payments stay pending until the shop completes them. Most clear within a few days.",
+ "pending_cash_withdrawal": "Cash withdrawals stay pending until the ATM's bank confirms them. Most clear within a few days.",
+ "pending_top_up": "Top-ups can stay pending while they're checked. If yours is taking longer than expected, tell us how you topped up.",
+ "pending_transfer": "Transfers can stay pending while they're processed. The app shows the status under the transfer.",
+ "pin_blocked": "You can unblock your PIN in the app under Cards, or at an ATM that offers PIN services.",
+ "receiving_money": "Share your account details from the app under Accounts, then Details, so people can send you money.",
+ "request_refund": "Refunds for a purchase come from the shop. If the shop won't help, we can raise a dispute for you.",
+ "reverted_card_payment?": "A payment can be reversed when the shop cancels it. The money returns to your account automatically.",
+ "supported_cards_and_currencies": "You can see the cards and currencies we support in the app under Help.",
+ "terminate_account": "You can close your account in the app under Profile, then Close account, once your balance is zero.",
+ "top_up_by_bank_transfer_charge": "You can see any fee for topping up by bank transfer in the app's fee list.",
+ "top_up_by_card_charge": "You can see any fee for topping up by card in the app's fee list.",
+ "top_up_by_cash_or_cheque": "You can see the ways to top up with cash or a cheque in the app under Top up.",
+ "top_up_failed": "If a top-up fails, the money isn't taken. Check the card details and try again, or send us the error message.",
+ "top_up_limits": "You can see your top-up limits in the app under Top up, then Limits.",
+ "top_up_reverted": "A top-up can be reversed if your card's bank cancels it. The money goes back to the card you used.",
+ "topping_up_by_card": "You can top up with a debit or credit card in the app under Top up.",
+ "transaction_charged_twice": "If a payment shows twice, one is often a temporary hold that drops off. If both stay, send us the details.",
+ "transfer_fee_charged": "Some transfers carry a fee, shown in the app before you confirm. Send us the transfer and we'll check this one.",
+ "transfer_into_account": "Share your account details from the app under Accounts, then Details, to receive a transfer.",
+ "transfer_not_received_by_recipient": "Transfers can take a little while to arrive. The app shows the status; if it says sent, we can trace it for you.",
+ "transfer_timing": "Most transfers arrive the same or the next working day. The app shows the expected time before you confirm.",
+ "unable_to_verify_identity": "Make sure your ID photo is clear and matches your details. If it still fails, we'll help you finish the check.",
+ "verify_my_identity": "You can verify your identity in the app under Profile, with a photo of your ID and a short selfie.",
+ "verify_source_of_funds": "We sometimes ask where money comes from, as the law requires. The app lists the documents we accept.",
+ "verify_top_up": "We sometimes check top-ups to keep your account safe. Follow the steps in the app to confirm yours.",
+ "virtual_card_not_working": "Check that the virtual card isn't frozen in the app. If it still fails, create a new one there.",
+ "visa_or_mastercard": "The app shows whether your card is Visa or Mastercard, under Cards.",
+ "why_verify_identity": "The law requires us to verify who you are before you can use all of your account.",
+ "wrong_amount_of_cash_received": "Send us the ATM's location and the time, and we'll ask its bank to check the machine.",
+ "wrong_exchange_rate_for_cash_withdrawal": "Withdrawals in another currency use the rate on the day they settle. Send us the withdrawal and we'll check the rate used."
+};
+
+function pretty(label) { return String(label).replace(/_/g, " ").toLowerCase(); }
+function fill(b, parts, cls) {
+  b.replaceChildren(...parts); b.className = "msg bot" + (cls ? " " + cls : "");
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+function bubble(cls, parts) {
+  const chat = $("chat"), b = el("div", undefined, "msg " + cls);
+  b.append(...parts); chat.append(b);
+  while (chat.children.length > 14) chat.firstElementChild.remove();
+  chat.scrollTop = chat.scrollHeight;
+  return b;
+}
+function dots() { const d = el("span", undefined, "dots"); d.append(el("i"), el("i"), el("i")); return d; }
+function reply(out) {
+  // Plain words for the customer; the routing record keeps the technical detail.
+  const sensitive = out.data_class === "sensitive", cost = "$" + out.cost_usd.toFixed(4);
+  if (out.status === "answered") {
+    const text = REPLIES[out.answer] || "I'll pass this to the right team.";
+    const parts = [el("b", cap(pretty(out.answer)), "rtype"), text];
+    if (sensitive) parts.push(" Your personal data stayed inside the company.");
+    parts.push(el("span", out.escalated ? `Checked by Claude Opus · ${cost}` : "Answered in-house · free", "meta"));
+    return parts;
+  }
+  if (sensitive) return ["Your message contains personal data, so it stayed inside the company. I couldn't be sure of the answer, so a colleague will pick it up.", el("span", "Kept in-house · no paid call", "meta")];
+  return ["I can't handle this one safely, so a colleague will pick it up.", el("span", `No answer · ${cost}`, "meta")];
+}
 
 async function send() {
-  const payload = body($("q").value.trim(), state.task, [0, 1, 2, 3].map((i) => $("o" + i).value.trim()), $("sensitive").checked);
-  $("send").disabled = true; $("sendStatus").textContent = "waiting for the router…";
-  try { showRecord(await call(payload), payload); } catch (e) { showError(e.message); }
-  finally { $("send").disabled = false; $("sendStatus").textContent = ""; }
+  const text = $("q").value.trim();
+  if (!text || $("send").disabled) return;
+  const payload = body(text, [], $("sensitive").checked);
+  $("send").disabled = true; $("q").value = "";
+  bubble("me", [text]);
+  const pending = bubble("bot", [dots()]);
+  mapThinking(state.mode, payload.sensitive);
+  try {
+    const out = await call(payload);
+    await mapResult(out, payload.mode, false);
+    fill(pending, reply(out));
+    showRecord(out, payload);
+  } catch (e) { mapError(e.code, e.message); showError(e.message); fill(pending, [e.message], "err"); }
+  finally { $("send").disabled = false; }
 }
 
+// ---------------------------------------------------------------- replay
 const stats = { n: 0, answered: 0, correct: 0, escalated: 0, abstained: 0, cost: 0, lat: [] };
 function median(xs) { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : 0; }
 function pct(a, b) { return b ? Math.round(100 * a / b) + "%" : "–"; }
+function tile(id, value) {
+  const b = $("t-" + id); if (b.textContent === value) return;
+  b.textContent = value; const t = $("tl-" + id); t.classList.remove("bump"); void t.offsetWidth; t.classList.add("bump");
+}
 function renderStats() {
-  $("t-n").textContent = stats.n; $("t-acc").textContent = pct(stats.correct, stats.answered);
-  $("t-esc").textContent = pct(stats.escalated, stats.n); $("t-abs").textContent = pct(stats.abstained, stats.n);
-  $("t-cost").textContent = "$" + stats.cost.toFixed(4); $("t-opus").textContent = "$" + (stats.n * OPUS_PER_CALL).toFixed(4);
-  $("t-lat").textContent = stats.lat.length ? (median(stats.lat) / 1000).toFixed(1) + " s" : "–";
+  tile("n", String(stats.n)); tile("acc", pct(stats.correct, stats.answered));
+  tile("esc", pct(stats.escalated, stats.n)); tile("abs", pct(stats.abstained, stats.n));
+  tile("lat", stats.lat.length ? (median(stats.lat) / 1000).toFixed(1) + " s" : "–");
+  const opus = stats.n * OPUS_PER_CALL, top = Math.max(opus, stats.cost, 1e-9);
+  $("t-cost").textContent = "$" + stats.cost.toFixed(4); $("t-opus").textContent = "$" + opus.toFixed(4);
+  $("bar-r").style.width = (100 * stats.cost / top) + "%"; $("bar-o").style.width = (100 * opus / top) + "%";
 }
 function logRow(i, item, out, err) {
-  const tr = el("tr");
-  tr.append(el("td", String(i)), el("td", item.question.length > 90 ? item.question.slice(0, 87) + "…" : item.question));
+  const tr = el("tr", undefined, "new");
+  tr.append(el("td", String(i)), el("td", item.question.length > 86 ? item.question.slice(0, 83) + "…" : item.question));
   if (err) { tr.append(el("td", err, "error"), el("td", ""), el("td", ""), el("td", "", "num"), el("td", "", "num")); }
   else {
     const right = out.status === "answered" ? out.answer === item.gold : null;
-    tr.append(el("td", (WHY[out.reason] || [0, 0, out.reason])[2]), el("td", out.answer || "–"),
+    tr.append(el("td", (WHY[out.reason] || [0, 0, out.reason])[2]), el("td", out.answer ? (out.task_type === "label" ? pretty(out.answer) : out.answer) : "–"),
       el("td", right === null ? "–" : right ? "yes" : "no", right === null ? "" : right ? "yes" : "no"),
       el("td", "$" + out.cost_usd.toFixed(4), "num"), el("td", (out.latency_ms / 1000).toFixed(1) + " s", "num"));
   }
@@ -261,32 +858,39 @@ function logRow(i, item, out, err) {
 async function replay() {
   Object.assign(stats, { n: 0, answered: 0, correct: 0, escalated: 0, abstained: 0, cost: 0, lat: [] });
   $("log").replaceChildren(); renderStats();
-  state.running = true; $("start").disabled = true; $("stop").disabled = false;
+  state.running = true; $("start").disabled = true; $("stop").disabled = false; $("send").disabled = true;
   const items = state.items.slice(0, Number($("count").value));
   for (let i = 0; i < items.length && state.running; i++) {
     const it = items[i];
+    const payload = body(it.question, it.options || [], false);
+    mapThinking(state.mode, false);
     try {
-      const out = await call(body(it.question, it.task_type, it.options || [], false));
+      const out = await call(payload);
+      await mapResult(out, payload.mode, true);
+      showRecord(out, payload);
       stats.n++; stats.cost += out.cost_usd; stats.lat.push(out.latency_ms);
       if (out.escalated) stats.escalated++;
       if (out.status === "answered") { stats.answered++; if (out.answer === it.gold) stats.correct++; } else stats.abstained++;
       logRow(i + 1, it, out);
     } catch (e) {
-      logRow(i + 1, it, null, e.message);
-      if (e.message.startsWith("Enter the API key")) break;
+      mapError(e.code, e.message); logRow(i + 1, it, null, e.message);
+      if (e.code === "unauthorized") break;
     }
     renderStats();
   }
-  state.running = false; $("start").disabled = false; $("stop").disabled = true;
+  state.running = false; $("start").disabled = false; $("stop").disabled = true; $("send").disabled = false;
+  status(["Live test finished: ", { b: `${stats.n} questions` }, ` · router $${stats.cost.toFixed(4)} vs Opus $${(stats.n * OPUS_PER_CALL).toFixed(4)}`]);
 }
 
-for (const b of $("task").querySelectorAll("button")) b.addEventListener("click", () => setTask(b.dataset.task));
+// ---------------------------------------------------------------- start-up
 for (const b of $("mode").querySelectorAll("button")) b.addEventListener("click", () => setMode(b.dataset.mode));
 for (const b of document.querySelectorAll("[data-preset]")) b.addEventListener("click", () => PRESETS[b.dataset.preset]());
 $("send").addEventListener("click", send);
+$("key").addEventListener("input", () => keyProblem(false));
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 $("start").addEventListener("click", replay);
 $("stop").addEventListener("click", () => { state.running = false; });
-setMode("balanced"); PRESETS.easy();
+setMode("balanced"); mapReset();
 fetch("/demo/samples").then((r) => r.json()).then((d) => { state.labels = d.labels; state.items = d.items; })
   .catch(() => showError("Could not load the demo questions from /demo/samples."));
 </script>

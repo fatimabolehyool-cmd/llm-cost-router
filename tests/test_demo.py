@@ -69,6 +69,17 @@ def test_replay_questions_come_from_the_test_split_only():
         assert split_of(group_key(it["task_type"], it["question"])) == "test", it["id"]
 
 
+def test_every_request_type_has_a_prepared_chat_reply():
+    static = os.path.join(os.path.dirname(app_module.__file__), "static")
+    page = open(os.path.join(static, "demo.html"), encoding="utf-8").read()
+    start = page.index("const REPLIES = ") + len("const REPLIES = ")
+    replies = json.loads(page[start : page.index(";\n", start)])
+    with open(os.path.join(static, "demo_samples.json"), encoding="utf-8") as f:
+        labels = json.load(f)["labels"]
+    assert set(replies) == set(labels)  # one reply per request type, none extra
+    assert all(0 < len(text) <= 170 for text in replies.values())
+
+
 def test_warm_up_asks_each_local_model_once(caplog):
     j1, j2 = FakeModel("A"), FakeModel("B")
     with caplog.at_level(logging.INFO, logger="router"):

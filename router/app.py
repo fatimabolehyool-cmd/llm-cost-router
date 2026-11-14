@@ -40,13 +40,17 @@ log = logging.getLogger("router")
 
 class AnswerRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
-    task_type: Literal["choice", "label"]
+    # Optional (I1 v1.1): when omitted it is inferred from the options, exactly 4 -> "choice",
+    # otherwise "label" (a customer message sorted into the caller's request types).
+    task_type: Literal["choice", "label"] | None = None
     options: list[str] = Field(min_length=2, max_length=100)
     mode: Literal["cheapest", "balanced", "best_quality"] = "balanced"
     sensitive: bool = False
 
     @model_validator(mode="after")
     def check(self) -> AnswerRequest:
+        if self.task_type is None:
+            self.task_type = "choice" if len(self.options) == 4 else "label"
         if self.task_type == "choice" and len(self.options) != 4:
             raise ValueError("choice questions need exactly 4 options")
         if any(not o.strip() or len(o) > 200 for o in self.options):
@@ -72,6 +76,7 @@ class AnswerResponse(BaseModel):
     latency_ms: int
     versions: dict
     policy_p: float | None = None  # additive v1 field: the policy's confidence, when it decided
+    task_type: str | None = None  # additive v1.1 field: given or inferred task type
 
 
 def build_senior(
@@ -251,7 +256,7 @@ async def answer(body: AnswerRequest, request: Request):
         out.escalated,
         out.latency_ms,
     )
-    return AnswerResponse(**out.__dict__)
+    return AnswerResponse(**out.__dict__, task_type=body.task_type)
 
 
 @app.post("/v1/feedback", response_model=FeedbackResponse, dependencies=[Depends(require_api_key)])

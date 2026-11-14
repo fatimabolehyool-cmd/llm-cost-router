@@ -37,9 +37,9 @@ flowchart LR
   A["Anthropic API<br/>Claude Opus 5.5"]
   R -->|"I3 /api/chat, both in parallel"| O
   R -->|"I5 V2 inference, 60 ms, else rule-v0"| P
-  R -->|"async log, atomic spend reservation"| DB
+  R -->|"I6 SQL: async log, atomic spend reservation"| DB
   R -->|"I4 only via the egress gateway, never sensitive data"| A
-  AF -->|"I8 pipelines CLI"| ML
+  AF -->|"I9 pipelines CLI, I8 MLflow client"| ML
   ML -->|"I7 promote/rollback: export + MLServer load"| P
   AF -.->|"I7 /admin/policy/reload"| R
   PR -->|"I10 /metrics"| R
@@ -129,20 +129,22 @@ run `make real-up` afterwards to return to the real ones.
 
 ```bash
 curl -s localhost:8000/v1/answer -H 'X-API-Key: dev-key-change-me' -H 'Content-Type: application/json' \
-  -d '{"question": "Which planet is closest to the Sun?", "task_type": "choice",
+  -d '{"question": "Which planet is closest to the Sun?",
        "options": ["Venus", "Mercury", "Earth", "Mars"], "mode": "balanced"}'
 ```
 
 ```json
 {"request_id": "req_3f2a9c1b7d4e", "status": "answered", "answer": "B", "verified": true,
  "escalated": false, "model": "gemma3:12b", "reason": "policy_accepted",
- "data_class": "non_sensitive", "cost_usd": 0.0, "latency_ms": 1410, "policy_p": 0.91,
+ "data_class": "non_sensitive", "cost_usd": 0.0, "latency_ms": 1410, "policy_p": 0.91, "task_type": "choice",
  "versions": {"api": "v1", "policy": "run-e1d8cf42", "prompt": "junior-prompts-v2", "junior1": "gemma3:12b",
               "junior2": "phi4:14b", "senior": "claude-opus-5-5"}}
 ```
 
-- `task_type` is `choice` (exactly 4 options) or `label` (one of a closed list, e.g. the 77
-  Banking77 intents in `data/banking77_labels.json`). `mode`: `cheapest`, `balanced` (default),
+- `task_type` is optional: the router reads exactly 4 options as `choice` (a question with
+  options) and any other list as `label` (a customer message sorted into one of the request types
+  you send, e.g. the 77 Banking77 intents in `data/banking77_labels.json`). Send it explicitly to
+  override; the response says how the request was read. `mode`: `cheapest`, `balanced` (default),
   `best_quality`. `sensitive: true` forces local-only handling; personal data is also detected.
 - Errors: `400 invalid_request` (also non-English questions), `401 unauthorized`,
   `503 overloaded | models_unavailable | database_unavailable`. A request the router cannot
