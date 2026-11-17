@@ -8,6 +8,7 @@ import math
 import pytest
 
 from common.policy_features import FEATURES, FEATURES_V2, fit_answer_prior
+from common.release_gate import paired_counts
 from pipelines import shadow
 from router.policy import PolicyMeta
 
@@ -94,14 +95,6 @@ def test_model_policy_applies_its_threshold_and_never_scores_unreadable_rows():
     assert decisions == [True, False, True, True, False, True, False]
 
 
-def test_sign_test_known_values():
-    assert shadow.sign_test(0, 0) == 1.0
-    assert shadow.sign_test(5, 5) == 1.0
-    assert shadow.sign_test(10, 0) == pytest.approx(2 / 1024)
-    assert shadow.sign_test(3, 9) == shadow.sign_test(9, 3)
-    assert 0 < shadow.sign_test(7, 13) < 1
-
-
 def fixed(name, decisions):
     return shadow.Policy(name, lambda rows: list(decisions))
 
@@ -116,6 +109,9 @@ def test_compare_counts_every_changed_decision():
     assert d["now_escalated_wrong_answers"] == 1  # row 1: a wrong answer no longer accepted
     assert d["now_accepted_wrong_answers"] == 1  # row 6: a wrong answer newly accepted
     assert (d["challenger_right_only"], d["champion_right_only"]) == (2, 1)
+    # the release gate's own counting agrees with the shadow report's
+    y = [r["junior_correct"] for r in ROWS]
+    assert paired_counts(champion.decide(ROWS), challenger.decide(ROWS), y) == (2, 1)
     assert d["sign_test_p"] == pytest.approx(1.0)
     assert r["champion"]["coverage"] == pytest.approx(3 / 7)
     assert r["challenger"]["accepted_accuracy"] == pytest.approx(3 / 4)
@@ -126,6 +122,7 @@ def test_compare_counts_every_changed_decision():
         "accuracy_not_worse": True,
         "coverage_within_2pts": True,
         "false_accept_upper95_le_25pct": False,
+        "not_significantly_worse": True,
     }
     assert r["verdict"] == "keep the champion"
 

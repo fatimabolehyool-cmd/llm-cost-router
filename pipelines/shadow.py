@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 import tempfile
 from collections.abc import Callable, Sequence
@@ -36,13 +35,12 @@ from common.policy_features import (  # noqa: E402
     build,
     build_v2,
 )
+from common.release_gate import decide  # noqa: E402
 from common.splits import split_of  # noqa: E402
 
 MODEL = "routing-policy"
 SPLIT = "release_eval"  # the gate's split; the test split is never used before the final report
 SENIOR_COST_USD = 0.0027  # mean Opus 5.5 cost per call in the held-out evaluation (12 Nov)
-MAX_FALSE_ACCEPT_UPPER = 0.25
-MAX_COVERAGE_DROP = 0.02
 
 
 # ---------------------------------------------------------------- policies
@@ -108,15 +106,6 @@ def model_policy(meta: dict, predict: Callable[[list[list[float]]], Sequence[flo
 # ---------------------------------------------------------------- comparison
 
 
-def sign_test(k: int, m: int) -> float:
-    """Two-sided exact binomial test that k and m successes out of k + m are equally likely."""
-    n = k + m
-    if n == 0:
-        return 1.0
-    tail = sum(math.comb(n, i) for i in range(min(k, m) + 1)) / 2**n
-    return min(1.0, 2 * tail)
-
-
 def summarize(accept: list[bool], y: list[int], senior_cost: float) -> dict:
     n, n_acc = len(y), sum(accept)
     wrong = sum(1 for a, c in zip(accept, y, strict=True) if a and c == 0)
@@ -141,11 +130,8 @@ def compare(rows: list[dict], champion: Policy, challenger: Policy, senior_cost:
     better = caught + (len(now_accepted) - new_errors)  # rows where only the challenger is right
     worse = (len(now_escalated) - caught) + new_errors  # rows where only the champion is right
     ch, cl = summarize(a, y, senior_cost), summarize(b, y, senior_cost)
-    gate = {
-        "accuracy_not_worse": cl["accepted_accuracy"] >= ch["accepted_accuracy"],
-        "coverage_within_2pts": cl["coverage"] >= ch["coverage"] - MAX_COVERAGE_DROP,
-        "false_accept_upper95_le_25pct": cl["false_accept_upper95"] <= MAX_FALSE_ACCEPT_UPPER,
-    }
+    verdict = decide(ch, cl, better, worse)  # the release gate's own rule (common/release_gate)
+    gate = verdict["criteria"]
     return {
         "split": SPLIT,
         "n": len(rows),
@@ -159,10 +145,10 @@ def compare(rows: list[dict], champion: Policy, challenger: Policy, senior_cost:
             "now_accepted_wrong_answers": new_errors,
             "challenger_right_only": better,
             "champion_right_only": worse,
-            "sign_test_p": sign_test(better, worse),
+            "sign_test_p": verdict["sign_test_p"],
         },
         "gate_vs_champion": gate,
-        "verdict": "eligible for promotion" if all(gate.values()) else "keep the champion",
+        "verdict": "eligible for promotion" if verdict["passed"] else "keep the champion",
         "senior_usd_per_call": senior_cost,
     }
 

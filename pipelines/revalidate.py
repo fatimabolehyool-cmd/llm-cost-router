@@ -15,8 +15,10 @@ Steps:
      policy-features-v1, threshold chosen on validation to match the rule's coverage
   4. compare both on release-evaluation: accuracy of accepted answers, coverage, and the
      upper 95% bound of the false-acceptance rate
-  5. gate: challenger accuracy >= champion accuracy, coverage within 2 points, false-acceptance
-     upper bound <= 25%
+  5. gate (common/release_gate.py, shared with the shadow report): challenger accuracy >= champion
+     accuracy, coverage within 2 points, false-acceptance upper bound <= 25%, and not significantly
+     worse on the rows where only one policy decides right (exact sign test); the p-value and the
+     paired counts are recorded either way
   6. log everything to MLflow, register the model, set alias `challenger`
 """
 
@@ -49,6 +51,7 @@ from common.policy_features import (  # noqa: E402
     build_v2,
     fit_answer_prior,
 )
+from common.release_gate import decide, paired_counts  # noqa: E402
 from common.splits import SPLITS, split_of  # noqa: E402
 
 MODEL_NAME = "routing-policy"
@@ -137,14 +140,13 @@ def main() -> int:
     p_va = model.predict_proba(Xva)[:, 1]
     threshold = float(np.quantile(p_va, 1 - agree_va.mean()))
 
+    accept_re = model.predict_proba(Xre)[:, 1] >= threshold
     champion = evaluate(agree_re, yre)  # rule-v0
-    challenger = evaluate(model.predict_proba(Xre)[:, 1] >= threshold, yre)
-    gate = {
-        "accuracy_not_worse": challenger["accepted_accuracy"] >= champion["accepted_accuracy"],
-        "coverage_within_2pts": challenger["coverage"] >= champion["coverage"] - 0.02,
-        "false_accept_upper95_le_25pct": challenger["false_accept_upper95"] <= 0.25,
-    }
-    gate_passed = all(gate.values())
+    challenger = evaluate(accept_re, yre)
+    better, worse = paired_counts(agree_re.tolist(), accept_re.tolist(), yre.tolist())
+    verdict = decide(champion, challenger, better, worse)
+    gate = verdict["criteria"]
+    gate_passed = verdict["passed"]
 
     mlflow.set_experiment(EXPERIMENT)
     with (
@@ -169,6 +171,9 @@ def main() -> int:
                 **{f"champion_{k}": v for k, v in champion.items()},
                 **{f"challenger_{k}": v for k, v in challenger.items()},
                 "gate_passed": float(gate_passed),
+                "challenger_right_only": better,
+                "champion_right_only": worse,
+                "sign_test_p": verdict["sign_test_p"],
             }
         )
         mlflow.set_tags(
@@ -227,6 +232,12 @@ def main() -> int:
         "challenger": challenger,
         "gate": gate,
         "gate_passed": gate_passed,
+        "paired": {
+            "challenger_right_only": better,
+            "champion_right_only": worse,
+            "sign_test_p": verdict["sign_test_p"],
+            "significantly_better": verdict["significantly_better"],
+        },
         "next_step": "eligible for promotion (human approval)"
         if gate_passed
         else "stay on champion",
