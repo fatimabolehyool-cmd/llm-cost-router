@@ -47,9 +47,13 @@ def test_presenter_view_puts_chat_and_map_on_one_screen(client):
     # a toggle in the header, and the two sections the presenter layout places beside the chat
     assert 'id="presentBtn"' in page and 'aria-pressed="false"' in page
     assert 'id="behind"' in page and 'id="testband"' in page
-    # desktop widths only, and remembered in the address rather than in browser storage
-    assert "@media (min-width: 1000px)" in page and "body.present main" in page
+    # wide screens only, one screen with no page scroll, and remembered in the address
+    # rather than in browser storage
+    assert "@media (min-width: 1100px)" in page and "body.present main" in page
+    assert "height: 100dvh" in page
     assert 'searchParams.set("present"' in page
+    # the routing record groups each fact, so presenter view can show the key ones as tiles
+    assert "row.dataset.k = key" in page
 
 
 def test_demo_page_needs_no_key_but_the_api_still_does(client):

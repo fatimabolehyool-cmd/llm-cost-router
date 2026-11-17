@@ -334,28 +334,85 @@
   }
   @media (prefers-reduced-motion: reduce) { [data-enter] .hero-copy > *, [data-enter] .app-frame { animation: none !important; } }
 
-  /* presenter view: the chat beside the routing map and record, so a live demo needs no scrolling.
-     Toggled from the header; desktop widths only (narrow screens keep the stacked layout). */
-  .presentbtn { margin-left: auto; height: 40px; padding: 0 14px; font-size: var(--fs-sm); font-weight: 650; white-space: nowrap;
-    cursor: pointer; color: var(--ink); background: rgba(14, 30, 72, 0.55); border: 1px solid rgba(130, 170, 255, 0.3); }
-  .presentbtn[aria-pressed="true"] { color: #fff; background: var(--blue); border-color: var(--blue); }
-  @media (max-width: 999px) { .presentbtn { display: none; } }
-  @media (min-width: 1000px) {
-    body.present header.wrap { max-width: none; padding-block: 10px; }
-    body.present main { display: grid; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 20px;
-      align-items: start; padding: 0 var(--pad) 24px; }
-    body.present .hero { display: block; grid-column: 1; grid-row: 1 / span 2; position: sticky; top: 12px;
-      min-height: 0; max-width: none; padding: 0; }
-    body.present .hero-copy { display: none; }
-    body.present .band { grid-column: 2; max-width: none; padding: 0; }
-    body.present #behind { grid-row: 1; }
-    body.present #testband { grid-row: 2; padding-top: 16px; }
-    body.present .band .lede { display: none; }
-    body.present .sec { margin-bottom: 8px; font-size: 20px; }
-    body.present .split { gap: 14px; }
-    body.present .app-frame .chat { min-height: 160px; max-height: 38vh; }
-    body.present footer.wrap { display: none; }
-    body.present [data-enter] .app-frame { animation: none; }
+  /* ================= presenter view: one screen, no scrolling =================
+     Chat on the left at full height; on the right the routing map on top and, below it, the
+     routing record beside a compact live test. Every panel shares the same top and bottom edge.
+     Toggled from the header (and ?present in the address); wide screens only. */
+  .presentbtn { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; height: 38px; padding: 0 14px;
+    font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; cursor: pointer; color: var(--muted);
+    background: transparent; border: 1px solid var(--line); }
+  .presentbtn .sw { position: relative; width: 28px; height: 16px; border-radius: 999px; background: rgba(130, 170, 255, 0.18);
+    transition: background .25s ease; }
+  .presentbtn .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
+    background: #c9d6f5; transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+  .presentbtn:hover { color: var(--ink); border-color: rgba(130, 170, 255, 0.4); }
+  .presentbtn[aria-pressed="true"] { color: var(--ink); border-color: rgba(92, 140, 255, 0.55); }
+  .presentbtn[aria-pressed="true"] .sw { background: var(--blue); }
+  .presentbtn[aria-pressed="true"] .sw::after { transform: translateX(12px); background: #fff; }
+  #record dl > div { display: contents; }       /* one row per fact on the normal page */
+  @media (max-width: 1099px) { .presentbtn { display: none; } }
+
+  @media (min-width: 1100px) {
+    body.present { --stage-gap: 16px; display: flex; flex-direction: column; height: 100dvh; }
+    body.present header.wrap { max-width: none; padding: 10px 24px; }
+    body.present main { flex: 1; min-height: 620px; display: grid; padding: 0 24px 20px; gap: var(--stage-gap);
+      grid-template-columns: minmax(360px, 400px) minmax(0, 0.9fr) minmax(0, 1.1fr);
+      grid-template-rows: minmax(0, 1fr) auto; }
+    /* sections dissolve so their cards can sit on one grid */
+    body.present #behind, body.present #behind .split, body.present #testband { display: contents; }
+    body.present .sec, body.present .band .lede { position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip: rect(0 0 0 0); white-space: nowrap; }
+    body.present footer.wrap, body.present .hero-copy, body.present .swipe, body.present .sky { display: none; }
+
+    /* left: the chat, full height */
+    body.present .hero { grid-column: 1; grid-row: 1 / span 2; display: flex; align-items: stretch; min-height: 0; max-width: none; padding: 0; }
+    body.present .app-frame { flex: 1; display: flex; flex-direction: column; min-height: 0; animation: none;
+      box-shadow: 0 24px 60px rgba(0, 6, 30, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.02) inset; }
+    body.present .frame-body { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 14px 16px 16px; }
+    body.present .app-frame .chat { flex: 1; min-height: 0; max-height: none; }
+    body.present .chips { gap: 6px; margin: 8px 0 12px; }
+    body.present .chip { padding: 6px 10px; font-size: 13px; }
+    body.present .frame-settings { padding: 12px 16px 14px; }
+
+    /* right top: the map gets the space */
+    body.present .mapcard { grid-column: 2 / span 2; grid-row: 1; display: flex; flex-direction: column; min-height: 0;
+      padding: 16px 18px 6px; }
+    body.present .mapcard .scrollx { flex: 1; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+    body.present svg.map { width: 100%; height: 100%; max-height: 100%; }
+    body.present .bannerrow { height: 40px; }
+
+    /* right bottom: the receipt and the live test, side by side, equal height */
+    body.present #behind .split > .card:not(.mapcard), body.present #testband > .card { grid-row: 2; padding: 16px 18px;
+      min-height: 0; overflow: hidden; }
+    body.present #behind .split > .card:not(.mapcard) { grid-column: 2; }
+    body.present #testband > .card { grid-column: 3; }
+    body.present .card h3 { margin-bottom: 10px; }
+    body.present #record > .fade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    body.present #record .answer { font-size: 22px; line-height: 1.2; margin: 4px 0 0; }
+    body.present #record .why { margin: 0; font-size: var(--fs-sm); line-height: 1.45; color: var(--muted); }
+    body.present #record > .fade > dl { grid-column: auto; grid-row: auto; }
+    body.present #record dl { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 14px; margin-top: 8px;
+      padding-top: 12px; border-top: 1px solid var(--line); }
+    body.present #record dl > div { display: block; min-width: 0; }
+    body.present #record dl > div[data-k="readas"], body.present #record dl > div[data-k="verified"],
+    body.present #record dl > div[data-k="reason"], body.present #record dl > div[data-k="request"] { display: none; }
+    body.present #record dt { font-size: var(--fs-xs); }
+    body.present #record dd { font-size: var(--fs-base); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    body.present #testband .rhead { gap: 10px; }
+    body.present #testband .tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+    body.present #testband .tile { padding: 10px 10px 9px; border-radius: 10px; }
+    body.present #testband .tile b { font-size: 20px; }
+    body.present #testband .tile span { display: block; min-height: 2.5em; font-size: 11.5px; line-height: 1.25; }
+    body.present #testband .race { margin: 0; gap: 8px; }
+    body.present #testband .lane { grid-template-columns: 148px minmax(0, 1fr) 72px; font-size: var(--fs-sm); }
+    body.present #testband .scrollx { display: none; }   /* the per-question log stays on the normal page */
+  }
+  @media (min-width: 1100px) and (max-width: 1399px) {   /* projector-size screens (1280 x 720) */
+    body.present main { grid-template-columns: minmax(320px, 340px) minmax(0, 0.85fr) minmax(0, 1.15fr); }
+    body.present #testband #tl-n { display: none; }        /* the map header already counts the questions */
+    body.present #testband .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    body.present #record dd { white-space: normal; overflow-wrap: anywhere; }
   }
 </style>
 </head>
@@ -368,7 +425,7 @@
     <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#8fb6ff"/></svg>
     Cost-aware Router
   </div>
-  <button class="presentbtn" id="presentBtn" type="button" aria-pressed="false">Presenter view</button>
+  <button class="presentbtn" id="presentBtn" type="button" aria-pressed="false"><span class="sw" aria-hidden="true"></span>Presenter view</button>
   <div class="keywrap">
     <label class="key">Access key <input id="key" type="password" autocomplete="off" placeholder="router access key" aria-describedby="keyError"></label>
     <p class="keyerr" id="keyError" role="alert" hidden>Enter the access key to send messages.</p>
@@ -715,12 +772,17 @@ function showRecord(out, payload) {
   const readAs = out.task_type === "choice" ? "question with options"
     : out.task_type === "label" ? `customer message (one of ${state.labels.length} request types)` : "–";
   const rows = [
-    ["Read as", readAs], ["Answered by", out.model || "–"], ["Cost", "$" + out.cost_usd.toFixed(4)], ["Latency", out.latency_ms + " ms"],
-    ["Verified", out.verified ? "yes" : "no"], ["Decided by", (out.versions && out.versions.policy) || "–"],
-    ["P(local answer correct)", out.policy_p === null || out.policy_p === undefined ? "–" : out.policy_p.toFixed(2)],
-    ["Reason code", out.reason], ["Request ID", out.request_id]
+    ["readas", "Read as", readAs], ["model", "Answered by", out.model || "–"], ["cost", "Cost", "$" + out.cost_usd.toFixed(4)],
+    ["latency", "Latency", out.latency_ms + " ms"], ["verified", "Verified", out.verified ? "yes" : "no"],
+    ["policy", "Decided by", (out.versions && out.versions.policy) || "–"],
+    ["p", "P(correct)", out.policy_p === null || out.policy_p === undefined ? "–" : out.policy_p.toFixed(2)],
+    ["reason", "Reason code", out.reason], ["request", "Request ID", out.request_id]
   ];
-  for (const [k, v] of rows) dl.append(el("dt", k), el("dd", String(v)));
+  for (const [key, k, v] of rows) {
+    const row = el("div"); row.dataset.k = key;
+    row.append(el("dt", k), el("dd", String(v)));
+    dl.append(row);
+  }
   wrap.append(dl); box.append(wrap);
 }
 function showError(msg) { $("record").replaceChildren(el("p", msg, "error")); }
