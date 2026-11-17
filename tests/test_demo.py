@@ -42,6 +42,16 @@ def test_demo_page_is_served_with_a_strict_content_policy(client):
     assert "innerHTML" not in page and "localStorage" not in page
 
 
+def test_presenter_view_puts_chat_and_map_on_one_screen(client):
+    page = client.get("/demo").text
+    # a toggle in the header, and the two sections the presenter layout places beside the chat
+    assert 'id="presentBtn"' in page and 'aria-pressed="false"' in page
+    assert 'id="behind"' in page and 'id="testband"' in page
+    # desktop widths only, and remembered in the address rather than in browser storage
+    assert "@media (min-width: 1000px)" in page and "body.present main" in page
+    assert 'searchParams.set("present"' in page
+
+
 def test_demo_page_needs_no_key_but_the_api_still_does(client):
     assert client.get("/demo").status_code == 200
     body = {"question": "Which planet is closest to the Sun?", "task_type": "choice"}
