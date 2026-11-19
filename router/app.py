@@ -39,6 +39,9 @@ log = logging.getLogger("router")
 
 
 class AnswerRequest(BaseModel):
+    """Body of POST /v1/answer (interface I1). task_type may be omitted: exactly 4 options
+    are read as a choice question, anything else as a label task."""
+
     question: str = Field(min_length=1, max_length=4000)
     # Optional (I1 v1.1): when omitted it is inferred from the options, exactly 4 -> "choice",
     # otherwise "label" (a customer message sorted into the caller's request types).
@@ -49,6 +52,8 @@ class AnswerRequest(BaseModel):
 
     @model_validator(mode="after")
     def check(self) -> AnswerRequest:
+        """Cross-field checks: infer task_type; a choice needs exactly 4 options; options
+        must be unique and 1-200 characters; the question must be mostly English (otherwise 400)."""
         if self.task_type is None:
             self.task_type = "choice" if len(self.options) == 4 else "label"
         if self.task_type == "choice" and len(self.options) != 4:
@@ -64,6 +69,8 @@ class AnswerRequest(BaseModel):
 
 
 class AnswerResponse(BaseModel):
+    """The routing record returned for every answered or abstained request."""
+
     request_id: str
     status: Literal["answered", "abstained"]
     answer: str | None
@@ -125,6 +132,8 @@ class FeedbackRequest(BaseModel):
 
 
 class FeedbackResponse(BaseModel):
+    """Reply of POST /v1/feedback (interface I2)."""
+
     received: bool
 
 
@@ -144,12 +153,18 @@ async def warm_up(*juniors) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Build the services once at start-up and close them at shutdown.
+
+    Start-up: HTTP client, store and migrations, juniors, senior adapter, egress gateway, policy
+    client, audit sampler, orchestrator, metrics and the junior warm-up. Shutdown drains the
+    audits and flushes the request log."""
     s = Settings()
     client = httpx.AsyncClient(limits=httpx.Limits(max_connections=50))
     store = Store(s.database_url, s.spend_cap_usd)
     await store.start()
 
     def cb() -> CircuitBreaker:
+        """A new circuit breaker with the configured threshold and cooldown."""
         return CircuitBreaker(s.breaker_threshold, s.breaker_cooldown_s)
 
     j1 = OllamaJunior(client, s.junior1_url, s.junior1_model, s.junior_timeout_s, cb())
@@ -194,6 +209,7 @@ async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
 
 @app.get("/health")
 async def health() -> dict:
+    """Liveness: the process is up (no dependency is checked)."""
     return {"status": "ok"}  # process is up
 
 
@@ -205,6 +221,7 @@ async def prometheus_metrics() -> Response:
 
 @app.get("/ready")
 async def ready(request: Request):
+    """Readiness: 200 when PostgreSQL answers, otherwise 503 not_ready."""
     ok = await request.app.state.store.ping()
     return {"status": "ready"} if ok else _error(503, "not_ready", "database unreachable")
 
@@ -233,6 +250,11 @@ async def _http(request: Request, exc: HTTPException) -> JSONResponse:
 
 @app.post("/v1/answer", response_model=AnswerResponse, dependencies=[Depends(require_api_key)])
 async def answer(body: AnswerRequest, request: Request):
+    """Interface I1: route one question and return its routing record.
+
+    503 database_unavailable comes before any model call, because the spend cap cannot be
+    enforced; 503 overloaded and models_unavailable come from the juniors, before any paid call.
+    An abstention is a normal 200."""
     if not await request.app.state.store.ping():
         metrics.REJECTED.labels("database_unavailable").inc()
         return _error(503, "database_unavailable", "spend cap cannot be enforced; try later")

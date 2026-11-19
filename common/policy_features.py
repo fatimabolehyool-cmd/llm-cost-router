@@ -37,6 +37,7 @@ def build(
     j1_tokens: int,
     j2_tokens: int,
 ) -> list[float]:
+    """The policy-features-v1 vector for one request: 9 values in FEATURES order."""
     return [
         float(task_type == "choice"),
         float(task_type == "label"),
@@ -112,6 +113,8 @@ def build_v2(
     j2_tokens: int,
     prior: float,
 ) -> list[float]:
+    """The policy-features-v2 vector: the v1 features plus the answer prior (how often
+    this answer was right in the training data, per task type)."""
     return [
         *build(task_type, n_options, agree, j1_ok, j2_ok, prompt_tokens, j1_tokens, j2_tokens),
         float(prior),

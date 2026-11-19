@@ -134,9 +134,14 @@ class RouterCollector:
         self.orch, self.gateway, self.store = orch, gateway, store
 
     def describe(self) -> Iterable[Metric]:
+        """Nothing up front: the families are produced in collect() (an unchecked
+        collector)."""
         return []  # unchecked collector: families are produced only in collect()
 
     def collect(self) -> Iterable[Metric]:
+        """Values read from the live objects at scrape time: the policy version
+        serving, policy fallbacks, blocked egress calls, dropped log rows, audits and skipped audits,
+        and open circuit breakers."""
         info = GaugeMetricFamily(
             "router_policy_info",
             "The routing policy version serving now (rule-v0 when no trained model is loaded)",

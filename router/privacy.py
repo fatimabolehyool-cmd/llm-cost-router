@@ -44,6 +44,9 @@ def _cards(text: str) -> list[re.Match]:
 
 
 def contains_pii(text: str) -> bool:
+    """True if the text holds an email address, an Emirates ID, a UAE or international
+    phone number, or a Luhn-valid card number. Names, addresses, IBANs and account numbers are
+    not detected."""
     return bool(
         _EMAIL.search(text)
         or _EMIRATES_ID.search(text)

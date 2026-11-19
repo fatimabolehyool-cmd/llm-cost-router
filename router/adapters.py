@@ -19,6 +19,9 @@ class ModelUnavailable(Exception):
 
 @dataclass
 class ModelReply:
+    """One model reply: text, token counts (for the Anthropic senior the output count
+    includes thinking tokens, which are billed as output), latency and stop reason."""
+
     text: str
     input_tokens: int
     output_tokens: int  # for the Anthropic senior this includes thinking tokens (billed as output)
@@ -37,11 +40,15 @@ class CircuitBreaker:
         self.failures, self.opened_at = 0, 0.0
 
     def allow(self) -> bool:
+        """True when a call may go through: the breaker is closed, or its cooldown has
+        passed and one half-open trial call is allowed."""
         if self.failures < self.threshold:
             return True
         return time.monotonic() - self.opened_at >= self.cooldown_s  # half-open trial
 
     def record(self, ok: bool) -> None:
+        """Record a call's result: a success closes the breaker; the threshold-th failure
+        in a row opens it for the cooldown."""
         if ok:
             self.failures = 0
         else:
@@ -70,6 +77,10 @@ class OllamaJunior:
         self.breaker = breaker or CircuitBreaker()
 
     async def ask(self, system: str, user: str, max_tokens: int) -> ModelReply:
+        """Ask the local model (temperature 0, seed 42, thinking off) and return its reply.
+
+        Raises ModelUnavailable when the breaker is open or the call fails (timeout, connection
+        error, error status, unreadable JSON); the message names the error type, never the payload."""
         if not self.breaker.allow():
             raise ModelUnavailable("circuit_open")
         body = {
@@ -129,6 +140,9 @@ class HttpSenior:
         return max_tokens
 
     async def ask(self, system: str, user: str, max_tokens: int) -> ModelReply:
+        """Ask the mock senior provider and return its reply.
+
+        Raises ModelUnavailable when the breaker is open or the call fails."""
         if not self.breaker.allow():
             raise ModelUnavailable("circuit_open")
         t0 = time.perf_counter()
@@ -204,6 +218,8 @@ class AnthropicSenior:
         return f"AnthropicSenior(model={self.model!r}, url={self.url!r})"
 
     def output_budget(self, max_tokens: int) -> int:
+        """Output tokens one call may be billed for: the answer budget plus the
+        thinking headroom, because Opus 5.5 always thinks before answering."""
         return max_tokens + self.thinking_headroom
 
     def _body(self, system: str, user: str, max_tokens: int) -> dict:
@@ -225,6 +241,11 @@ class AnthropicSenior:
         )
 
     async def ask(self, system: str, user: str, max_tokens: int) -> ModelReply:
+        """Call the Messages API and return the text blocks and token usage.
+
+        One retry on 429, 500 or 529 or a failed connection, never after a read timeout (the call
+        may already be billed). Failures raise ModelUnavailable with the status only, never the
+        response body."""
         if not self.breaker.allow():
             raise ModelUnavailable("circuit_open")
         body = self._body(system, user, max_tokens)

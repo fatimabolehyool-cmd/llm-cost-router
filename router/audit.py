@@ -31,6 +31,9 @@ log = logging.getLogger("router.audit")
 
 
 class AuditSampler:
+    """Re-asks a random share of accepted junior answers to the senior in the background
+    and records whether it agrees; the rules are in the module docstring."""
+
     def __init__(
         self,
         gateway: EgressGateway,
@@ -50,6 +53,7 @@ class AuditSampler:
         self.skipped: Counter = Counter()  # backlog_full / egress_blocked / budget / senior_down
 
     def eligible(self, outcome) -> bool:
+        """Only answered, verified, non-escalated, non-sensitive outcomes are audited."""
         return (
             outcome.status == "answered"
             and outcome.verified

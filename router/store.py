@@ -147,6 +147,9 @@ async def migrate(conn: asyncpg.Connection) -> list[str]:
 
 
 class Store:
+    """PostgreSQL access: migrations, the atomic spend cap, the asynchronous request log,
+    feedback and audit results."""
+
     def __init__(self, dsn: str, spend_cap_usd: float, queue_size: int = 1000) -> None:
         self.dsn, self.spend_cap_usd = dsn, spend_cap_usd
         self.pool: asyncpg.Pool | None = None
@@ -155,6 +158,8 @@ class Store:
         self._writer: asyncio.Task | None = None
 
     async def start(self) -> None:
+        """Open the pool, apply pending migrations, set the spend cap from configuration
+        and start the log writer."""
         self.pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=5, command_timeout=2)
         async with self.pool.acquire() as c:
             applied = await migrate(c)
@@ -170,6 +175,7 @@ class Store:
         self._writer = asyncio.create_task(self._write_loop())
 
     async def stop(self) -> None:
+        """Flush the log queue (waits up to 5 s), stop the writer and close the pool."""
         if self._writer:
             await asyncio.wait_for(self.queue.join(), timeout=5)
             self._writer.cancel()
@@ -177,6 +183,7 @@ class Store:
             await self.pool.close()
 
     async def ping(self) -> bool:
+        """True if PostgreSQL answers within about 1 s."""
         try:
             async with self.pool.acquire(timeout=1) as c:
                 return await c.fetchval("SELECT 1", timeout=1) == 1
@@ -189,6 +196,8 @@ class Store:
     # cast the check compared a slightly larger number than the one stored, and a request that
     # fitted exactly under the cap was refused. Found by the PostgreSQL integration test.
     async def reserve_spend(self, usd: float) -> bool:
+        """Atomically reserve usd against the cap in one UPDATE. False, with nothing
+        reserved, if the reservation would exceed the cap."""
         async with self.pool.acquire(timeout=1) as c:
             row = await c.fetchrow(
                 "UPDATE spend SET reserved_usd = reserved_usd + $1::numeric(12, 6) "
@@ -199,6 +208,7 @@ class Store:
         return row is not None
 
     async def settle_spend(self, reserved: float, actual: float) -> None:
+        """Release a reservation and add the actual cost."""
         async with self.pool.acquire(timeout=1) as c:
             await c.execute(
                 "UPDATE spend SET reserved_usd = GREATEST(reserved_usd - $1::numeric(12, 6), 0), "
@@ -229,6 +239,8 @@ class Store:
 
     # ---- asynchronous request log ----
     def enqueue_log(self, row: dict[str, Any]) -> None:
+        """Queue a request-log row without waiting. A full queue drops the row and counts
+        it; it never raises, so logging can never fail a request."""
         try:
             self.queue.put_nowait(row)
         except asyncio.QueueFull:

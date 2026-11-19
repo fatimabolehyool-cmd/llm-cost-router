@@ -46,6 +46,10 @@ class PolicyMeta:
 
     @classmethod
     def load(cls, path: str | Path) -> PolicyMeta:
+        """Read and validate a model's metadata file.
+
+        The feature version and feature order must match a supported contract, a v2 model needs
+        its answer-prior table, and the balanced threshold must be in [0, 1]."""
         m = json.loads(Path(path).read_text(encoding="utf-8"))
         version = m["feature_version"]
         if version not in SUPPORTED_FEATURES:
@@ -107,6 +111,11 @@ class PolicyClient:
         self.endpoint = f"{url.rstrip('/')}/v2/models/{model_name}/infer"
 
     async def p_correct(self, x: list[float]) -> float:
+        """P(junior answer correct) for one feature vector, from the policy server.
+
+        The vector is validated before it is sent (60 ms timeout, one retry on a dropped connection).
+        Any failure, or a reply from a different model_version, raises PolicyUnavailable, and the
+        caller falls back to rule-v0."""
         n = len(self.meta.features)
         # Validate before sending: MLServer answers malformed input with a 500 and then drops
         # the kept-alive connection (Experiment 2), so the router never sends a bad vector.
