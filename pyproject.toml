@@ -29,7 +29,9 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["router", "common"]
+# pipelines.evaluate produces every number in the report, so it is held to the same floor.
+# The rest of pipelines/ is not counted yet.
+source = ["router", "common", "pipelines.evaluate"]
 
 [tool.coverage.report]
 # Ratchet: 60% at the start of the implementation phase (measured 62%); 75% after the senior
