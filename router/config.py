@@ -20,6 +20,9 @@ def _env(name: str, default: str | None = None) -> str:
 
 @dataclass(frozen=True)
 class Settings:
+    """All configuration, read once at start-up from environment variables (`.env`);
+    immutable."""
+
     database_url: str = field(default_factory=lambda: _env("DATABASE_URL"))
     api_key_sha256: str = field(default_factory=lambda: _env("ROUTER_API_KEY_SHA256"))
     hash_key: str = field(

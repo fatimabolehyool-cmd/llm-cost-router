@@ -19,20 +19,27 @@ from .store import Store
 class SeniorModel(Protocol):
     """What the gateway needs from a senior adapter (HttpSenior mock, AnthropicSenior)."""
 
-    def output_budget(self, max_tokens: int) -> int: ...
+    def output_budget(self, max_tokens: int) -> int:
+        """Most output tokens one call can be billed for (used to reserve spend)."""
 
-    async def ask(self, system: str, user: str, max_tokens: int) -> ModelReply: ...
+    async def ask(self, system: str, user: str, max_tokens: int) -> ModelReply:
+        """Ask the senior model; raises ModelUnavailable on failure."""
 
 
 class EgressBlocked(Exception):
-    pass
+    """A request that is not non-sensitive reached the gateway; it is refused and counted."""
 
 
 class BudgetExceeded(Exception):
-    pass
+    """The global spend cap has no room for this call's worst-case cost."""
 
 
 class EgressGateway:
+    """The only path to an external provider (ADR-4).
+
+    It refuses anything not classified non-sensitive, reserves the worst-case cost in PostgreSQL
+    before calling the senior, and settles the actual cost afterwards."""
+
     def __init__(
         self,
         senior: SeniorModel,
@@ -45,14 +52,21 @@ class EgressGateway:
         self.blocked_count = 0
 
     def estimate_usd(self, prompt_chars: int, max_tokens: int) -> float:
+        """Worst-case cost in USD: about 4 characters per input token, plus every
+        output token the call may be billed for."""
         return (prompt_chars / 4 * self.price_in + max_tokens * self.price_out) / 1e6
 
     def actual_usd(self, reply: ModelReply) -> float:
+        """Cost in USD from the token counts the provider reported."""
         return (reply.input_tokens * self.price_in + reply.output_tokens * self.price_out) / 1e6
 
     async def ask_senior(
         self, data_class: str, system: str, user: str, max_tokens: int
     ) -> tuple[ModelReply, float]:
+        """Send one non-sensitive prompt to the senior; return (reply, cost in USD).
+
+        Raises EgressBlocked for sensitive data and BudgetExceeded when the cap has no room. A model
+        error releases the reservation and is raised again."""
         if data_class != NON_SENSITIVE:
             self.blocked_count += 1
             raise EgressBlocked("sensitive data may not leave the system")

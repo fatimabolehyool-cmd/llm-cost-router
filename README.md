@@ -56,8 +56,8 @@ flowchart LR
 Balanced mode: both juniors answer in parallel; the policy predicts the probability that the
 junior answer is right; above the threshold it is returned (free), otherwise Opus is asked
 (paid) or, for sensitive data, the router abstains. If the policy server fails, the agreement
-rule decides (rule-v0): cost can change, safety cannot. Details and decisions: the
-implementation report; interface contracts: `docs/interfaces/`.
+rule decides (rule-v0): cost can change, safety cannot. Details: `docs/architecture.md`;
+decisions: `docs/adr/`; interface contracts: `docs/interfaces/`; terms: `docs/glossary.md`.
 
 ## Requirements
 
@@ -205,7 +205,8 @@ deploy/        Prometheus config and alert rules, Grafana provisioning and dashb
 infra/         Dockerfiles, lock files, compose override for the real models
 smoke/         checks S1–S3, lifecycle demo, backup drill, real requests
 tests/         unit; integration/ (PostgreSQL); e2e/ (Compose stack)
-docs/          interface contracts, dependency-audit decisions
+docs/          architecture as built, decision records (adr/), interface contracts I1–I11,
+               glossary, dependency-audit decisions
 exp*/          experiments from the architecture phase (kept for reproducibility)
 data/          question pools with SHA-256 checksums; results/: measured outputs
 ```

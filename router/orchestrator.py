@@ -38,15 +38,19 @@ log = logging.getLogger("router.orchestrator")
 
 
 class Overloaded(Exception):
-    pass
+    """Every junior slot is busy (the concurrency cap); the API answers 503 overloaded
+    instead of escalating to the paid senior."""
 
 
 class JuniorsUnavailable(Exception):
-    pass
+    """Neither junior answered; the API answers 503 models_unavailable, never a paid
+    escalation."""
 
 
 @dataclass
 class Outcome:
+    """The routing record of one request, as returned to the caller and logged."""
+
     request_id: str
     status: str  # answered | abstained
     answer: str | None
@@ -62,6 +66,10 @@ class Outcome:
 
 
 class Orchestrator:
+    """The request path: privacy classification, both juniors in parallel, the policy
+    (or rule-v0) decision, then answer, escalate through the egress gateway, or abstain. Every
+    outcome is logged, and eligible ones are handed to the audit sampler."""
+
     def __init__(
         self,
         s: Settings,
@@ -89,6 +97,9 @@ class Orchestrator:
     async def answer(
         self, question: str, task_type: str, options: list[str], mode: str, sensitive: bool
     ) -> Outcome:
+        """Route one question in the given mode and return its Outcome.
+
+        Raises Overloaded or JuniorsUnavailable (both become 503s) before any paid call."""
         t0 = time.perf_counter()
         rid = f"req_{uuid.uuid4().hex[:12]}"
         data_class = classify(question + "\n" + "\n".join(options), sensitive)
