@@ -248,5 +248,5 @@ s3: env          ## S3: canary test, sensitive data never leaves (breaker cooldo
 s2: env          ## S2: Airflow runs the pipeline, MLflow registers the challenger (big download first time)
 	$(PY) smoke/s2_airflow_mlflow.py
 
-down:            ## stop everything (data volumes are kept)
-	docker compose --profile mocks --profile orchestration down
+down:            ## stop every service in every profile (data volumes are kept)
+	docker compose --profile mocks --profile policy --profile monitoring --profile orchestration --profile lifecycle down

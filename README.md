@@ -217,7 +217,7 @@ data/          question pools with SHA-256 checksums; results/: measured outputs
 |---|---|
 | `Docker is not running` / `Ollama is not reachable` | start Docker Desktop and wait for "Engine running"; open the Ollama app |
 | `make real-up`: `container ... router-1 is unhealthy` | `docker compose logs --tail 40 router`. Usual causes: `SENIOR_API_KEY` missing for the anthropic provider, a malformed `ROUTER_ADMIN_KEY_SHA256` (re-run `make admin-key`) |
-| Ports already in use | another copy of the stack is running: `make real-down` (or `make down`) in that folder |
+| Ports already in use | another copy of the stack is running: `make down` in that folder (it stops every profile) |
 | Answers come back abstained with `budget_exceeded` | the spend cap is reached: raise `SPEND_CAP_USD`, then `make real-up` |
 | Admin call returns 403 / 401 | `make admin-key`, then `make real-up` (the router reads the key at start-up) |
 | `make promote` exits 3 "serving did NOT switch" | the stack is not running: `make real-up`, then `make reload` |

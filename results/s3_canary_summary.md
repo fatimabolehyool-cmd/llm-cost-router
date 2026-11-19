@@ -1,6 +1,6 @@
-# S3 canary test (2026-11-13T11:54:41+00:00)
+# S3 canary test (2026-11-19T18:49:18+00:00)
 
-**Result: PASS** — 252 sensitive requests (7 junior behaviours x 3 senior behaviours x 3 modes x 2 task types x 2 ways of being sensitive), run time 293 s. Measured.
+**Result: PASS** — 252 sensitive requests (7 junior behaviours x 3 senior behaviours x 3 modes x 2 task types x 2 ways of being sensitive), run time 294 s. Measured.
 
 | Check | Observed | Required |
 |---|---|---|
