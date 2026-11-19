@@ -9,10 +9,16 @@ email, phone number, Emirates ID or card number, never leave the Mac (section 9 
 detected). Every answer comes back with a routing record: who answered, whether it was verified,
 why, what it cost.
 
-**Measured on the 689-question held-out test set** (`results/eval_summary_20261112-1728.md`):
+**Measured on the 689-question held-out test set** (`results/eval_summary_20261119-2203.md`):
 the router is **86.5% accurate at $0.91 per 1,000 questions**, against 92.2% at $2.69 for
 Opus on every question: **66% cheaper at 94% of its accuracy** (the proposal's target was
-95%, so the quality target is narrowly missed). The local models alone reach 71–72%.
+95%, so the quality target is narrowly missed). The local models alone reach 71–72%. Haiku 5.5
+alone reaches 80.1% at $0.06; a random Haiku/Opus mix that costs as much as the router would
+reach 84.0%, so the routing decisions add 2.5 points (95% CI 0.2 to 4.8). In balanced mode,
+sensitive requests are answered locally 72.9% of the time with 86.9% precision, and the router
+abstains on the rest. The saving over Opus-only is $1.78 per 1,000 questions; it pays for the
+machine running the local models only above a break-even volume (the summary shows it for several
+assumed monthly costs).
 
 | | Real system | Tests and CI |
 |---|---|---|
@@ -178,7 +184,8 @@ mock models 9100, all bound to 127.0.0.1.
 
 | File | What |
 |---|---|
-| `eval_summary_20261112-1728.md` | held-out evaluation: router vs Opus-only, Haiku-only, juniors, random routing, with 95% intervals |
+| `eval_summary_20261119-2203.md` | held-out evaluation: router vs Opus-only, Haiku-only, juniors, random routing, a Haiku/Opus mix at the same cost, local-only answers, monthly cost and break-even, with 95% intervals; built from the saved policy probabilities `eval_policy_probs_20261119-2159.jsonl` |
+| `eval_summary_20261112-1728.md`, `eval_summary_20261119-2159.md` | the submitted run, and the same run repeated against the live policy server on 19 Nov (identical numbers) |
 | `e3_summary_*.md`, `e4_summary_*.md` | container → Ollama overhead (+1.3 ms per call); Opus vs Haiku on 200 questions |
 | `revalidate_*.json`, `shadow_*.md` | release gate results; shadow comparison against the serving champion |
 | `lifecycle_demo_*.md` | promote and rollback under live traffic, no restart |

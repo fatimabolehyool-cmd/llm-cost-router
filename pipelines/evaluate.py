@@ -162,6 +162,9 @@ JUNIOR1_ALONE = "Junior 1 alone (gemma3:12b)"
 JUNIOR2_ALONE = "Junior 2 alone (phi4:14b)"
 THRESHOLDS = [i / 20 for i in range(0, 21)]
 CURVE_BASELINES = (RULE, OPUS_ALONE, HAIKU_ALONE, JUNIOR1_ALONE)
+VOLUMES_PER_DAY = (1_000, 3_000, 10_000)  # 3,000 a day is the proposal's help-desk scenario
+FIXED_MONTHLY_USD = (100, 300, 1_000)  # assumed monthly cost of the machine running the juniors
+DAYS_PER_MONTH = 30
 TABLE_HEADER = [
     "| Strategy | Accuracy (95% CI) | Choice | Label | Escalated | Abstained | False acceptance (upper 95%) | Paid cost / 1,000 | Latency p50 / p95 ms* |",
     "|---|---|---|---|---|---|---|---|---|",
@@ -354,6 +357,71 @@ def senior_facts(rows: list[dict], opus: dict[str, dict]) -> tuple[int, float]:
     return wrong, statistics.fmean(o.get("cost_usd", 0.0) for o in opus.values() if o["ok"])
 
 
+def cost_matched_mix(
+    rows: list[dict], opus: dict[str, dict], haiku: dict[str, dict], router: list[dict]
+) -> dict:
+    """A random Haiku/Opus mix that pays what the router pays: the Opus share that matches the
+    router's cost, the mix's expected accuracy, and the router's lead over it with a bootstrap 95%
+    interval (the share held fixed). It shows what the routing decisions add over spending the
+    same money without them."""
+    n = len(rows)
+    o = [senior_outcome(opus[r["question_id"]], r["gold"]) for r in rows]
+    h = [senior_outcome(haiku[r["question_id"]], r["gold"]) for r in rows]
+    cost_r = sum(x["cost"] for x in router) / n
+    cost_o = sum(c for _, c, _ in o) / n
+    cost_h = sum(c for _, c, _ in h) / n
+    share = 0.0 if cost_o <= cost_h else min(1.0, max(0.0, (cost_r - cost_h) / (cost_o - cost_h)))
+    acc_o = statistics.fmean(c for c, _, _ in o)
+    acc_h = statistics.fmean(c for c, _, _ in h)
+    acc = share * acc_o + (1 - share) * acc_h
+    lead_ci = bootstrap_ci(
+        n,
+        lambda idx: (
+            sum(router[i]["correct"] - share * o[i][0] - (1 - share) * h[i][0] for i in idx)
+            / len(idx)
+        ),
+    )
+    return {
+        "share": share,
+        "acc": acc,
+        "cost_k": 1000 * (share * cost_o + (1 - share) * cost_h),
+        "lead": statistics.fmean(x["correct"] for x in router) - acc,
+        "lead_ci": lead_ci,
+    }
+
+
+def local_only(rows: list[dict], accept: list[bool]) -> dict:
+    """What a sensitive request gets: the junior answer where accept is true and an answer is
+    readable, otherwise an abstention. Nothing leaves the machine."""
+    answered = [r for r, a in zip(rows, accept, strict=True) if a and pick(r) is not None]
+    k = sum(pick(r) == r["gold"] for r in answered)
+    return {
+        "answered": len(answered) / len(rows),
+        "precision": _share(k, len(answered)),
+        "ci": wilson(k, len(answered)),
+    }
+
+
+def economics(opus_k: float, router_k: float, haiku_k: float) -> dict:
+    """Paid API cost per month at a few volumes, and the volume at which the router's saving over
+    Opus-only covers an assumed fixed monthly cost of running the local models. Inputs are paid
+    costs per 1,000 questions."""
+    saving = (opus_k - router_k) / 1000  # USD per question
+    month = {
+        v: {
+            "opus": opus_k * v * DAYS_PER_MONTH / 1000,
+            "router": router_k * v * DAYS_PER_MONTH / 1000,
+            "haiku": haiku_k * v * DAYS_PER_MONTH / 1000,
+            "saving": saving * v * DAYS_PER_MONTH,
+        }
+        for v in VOLUMES_PER_DAY
+    }
+    break_even = {
+        f: (f / saving / DAYS_PER_MONTH) if saving > 0 else float("inf") for f in FIXED_MONTHLY_USD
+    }
+    return {"saving_k": opus_k - router_k, "month": month, "break_even": break_even}
+
+
 def _share(k: int, n: int) -> float:
     return k / n if n else float("nan")
 
@@ -365,9 +433,10 @@ def strategy_row(name: str, s: dict) -> str:
         if s["fa"] != s["fa"] or ("alone" in name and "Junior" not in name)
         else f"{s['fa']:.1%} ({s['fa_hi']:.1%})"
     )
+    lat_mark = "†" if name.startswith("Junior") else ""  # parallel junior stage, see footnote
     return (
         f"| {name} | {s['acc']:.1%} ({s['ci'][0]:.1%}–{s['ci'][1]:.1%}) | {s['choice']:.1%} | {s['label']:.1%} | "
-        f"{s['esc']:.0%} | {s['abst']:.1%} | {fa} | ${s['cost_k']:.2f} | {s['p50']:.0f} / {s['p95']:.0f} |"
+        f"{s['esc']:.0%} | {s['abst']:.1%} | {fa} | ${s['cost_k']:.2f} | {s['p50']:.0f} / {s['p95']:.0f}{lat_mark} |"
     )
 
 
@@ -408,11 +477,72 @@ def facts_text(wrong: int, n: int, opus_cost: float) -> str:
     )
 
 
+def mix_row(m: dict) -> str:
+    return (
+        f"| Random Haiku/Opus mix at the router's cost ({m['share']:.0%} Opus, expected value) | {m['acc']:.1%} | | | "
+        f"{m['share']:.0%} | | | ${m['cost_k']:.2f} | |"
+    )
+
+
+def mix_text(m: dict) -> str:
+    return (
+        f"**Router vs a random Haiku/Opus mix that costs the same:** sending {m['share']:.0%} of questions to Opus and "
+        f"the rest to Haiku would cost what policy v2 costs and score an expected {m['acc']:.1%}. Policy v2 is "
+        f"{m['lead']:+.1%} ahead (bootstrap 95% CI {m['lead_ci'][0]:+.1%} to {m['lead_ci'][1]:+.1%}, Opus share held "
+        "fixed). This is what the routing decisions add over spending the same money without them."
+    )
+
+
+def local_only_lines(items: list[tuple[str, dict]]) -> list[str]:
+    lines = [
+        "**Local-only answers (what a sensitive request gets):** nothing is sent out; the router answers when it "
+        "trusts the local answer and abstains otherwise.",
+        "",
+        "| Local-only strategy | Answered | Precision of the answers (95% CI) | Abstained |",
+        "|---|---|---|---|",
+    ]
+    for name, s in items:
+        lines.append(
+            f"| {name} | {s['answered']:.1%} | {s['precision']:.1%} ({s['ci'][0]:.1%}–{s['ci'][1]:.1%}) | "
+            f"{1 - s['answered']:.1%} |"
+        )
+    return lines
+
+
+def economics_lines(e: dict) -> list[str]:
+    lines = [
+        f"**Paid cost per month and break-even (professor feedback 4):** against Opus-only, policy v2 saves "
+        f"${e['saving_k']:.2f} per 1,000 questions. Paid API cost per {DAYS_PER_MONTH}-day month:",
+        "",
+        "| Questions per day | Opus only | Router (policy v2) | Haiku only | Router saving vs Opus |",
+        "|---|---|---|---|---|",
+    ]
+    for v, m in e["month"].items():
+        label = f"{v:,}" + (" (the proposal's scenario)" if v == 3_000 else "")
+        lines.append(
+            f"| {label} | ${m['opus']:,.0f} | ${m['router']:,.0f} | ${m['haiku']:,.2f} | ${m['saving']:,.0f} |"
+        )
+    lines += [
+        "",
+        "The router also needs a machine that runs the two local models all day. If that machine costs F a month, "
+        "the router pays for itself above F divided by the saving per question. F is an assumption, not a "
+        "measurement:",
+        "",
+        "| Fixed cost of running the local models per month (assumed) | Break-even volume (questions per day) |",
+        "|---|---|",
+    ]
+    lines += [f"| ${f:,} | {v:,.0f} |" for f, v in e["break_even"].items()]
+    return lines
+
+
 def render(
     rows: list[dict],
     stats: dict[str, dict],
     rand: tuple[float, float, float],
+    mix: dict,
     cmp: dict,
+    local: list[tuple[str, dict]],
+    econ: dict,
     audit: dict,
     facts: tuple[int, float],
     curve_name: str,
@@ -434,8 +564,9 @@ def render(
         *TABLE_HEADER,
     ]
     lines += [strategy_row(name, s) for name, s in stats.items()]
-    lines.append(random_row(*rand))
-    lines += ["", paired_text(cmp), "", audit_text(audit)]
+    lines += [random_row(*rand), mix_row(mix)]
+    lines += ["", paired_text(cmp), "", mix_text(mix), "", *local_only_lines(local)]
+    lines += ["", *economics_lines(econ), "", audit_text(audit)]
     lines += [
         "",
         f"Threshold sweep for the cost/accuracy figure: `{curve_name}`.",
@@ -444,8 +575,53 @@ def render(
         "",
         "*Latency is composed from measured parts: junior stage (replay run, two models in parallel at concurrency 2), "
         "policy call (~1 ms) and, when escalated, the measured Opus call. It is not an end-to-end measurement.",
+        "",
+        "† The junior rows show the junior stage (both models in parallel); latency per model was not recorded.",
     ]
     return "\n".join(lines) + "\n"
+
+
+def summary_text(
+    rows: list[dict],
+    opus: dict[str, dict],
+    haiku: dict[str, dict],
+    p: dict[str, float],
+    thr: float,
+    policy_name: str,
+    source: str,
+    curve_name: str,
+    generated: str,
+) -> tuple[str, list[list]]:
+    """Every strategy and comparison from the recorded answers and the policy probabilities:
+    the Markdown summary and the threshold-curve rows. Pure: report() does the reading and writing."""
+    champion = policy_label(thr)
+    strategies = baseline_strategies(rows, opus, haiku)
+    strategies[champion] = policy_strategy(rows, opus, p, thr)
+    stats = {name: summarize(outs, rows) for name, outs in strategies.items()}
+    esc_rule = stats[RULE]["esc"]
+    local = [
+        ("Always answer locally, no check", local_only(rows, [True] * len(rows))),
+        (RULE, local_only(rows, [r["agreed"] for r in rows])),
+        (champion, local_only(rows, [p[r["question_id"]] >= thr for r in rows])),
+    ]
+    text = render(
+        rows,
+        stats,
+        (esc_rule, *random_routing(rows, opus, esc_rule)),
+        cost_matched_mix(rows, opus, haiku, strategies[champion]),
+        paired(strategies[champion], strategies[RULE]),
+        local,
+        economics(
+            stats[OPUS_ALONE]["cost_k"], stats[champion]["cost_k"], stats[HAIKU_ALONE]["cost_k"]
+        ),
+        audit_check(rows, opus, p, thr),
+        senior_facts(rows, opus),
+        curve_name,
+        policy_name,
+        source,
+        generated,
+    )
+    return text, threshold_curve(rows, opus, p, stats)
 
 
 async def policy_probabilities(rows: list[dict], url: str) -> tuple[dict[str, float], str, float]:
@@ -515,29 +691,20 @@ def report(policy_url: str, policy_probs: Path | None = None) -> Path:
         source = "the running MLServer"
         save_probabilities(RESULTS / f"eval_policy_probs_{ts}.jsonl", p, policy_name, thr)
 
-    strategies = baseline_strategies(rows, opus, haiku)
-    strategies[policy_label(thr)] = policy_strategy(rows, opus, p, thr)
-    stats = {name: summarize(outs, rows) for name, outs in strategies.items()}
-    esc_rule = stats[RULE]["esc"]
-    rand = (esc_rule, *random_routing(rows, opus, esc_rule))
-    cmp = paired(strategies[policy_label(thr)], strategies[RULE])
-
     curve_path = RESULTS / f"eval_curve_{ts}.csv"
-    with curve_path.open("w", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerows(threshold_curve(rows, opus, p, stats))
-
-    text = render(
+    text, curve = summary_text(
         rows,
-        stats,
-        rand,
-        cmp,
-        audit_check(rows, opus, p, thr),
-        senior_facts(rows, opus),
-        curve_path.name,
+        opus,
+        haiku,
+        p,
+        thr,
         policy_name,
         source,
+        curve_path.name,
         datetime.now(UTC).isoformat(timespec="seconds"),
     )
+    with curve_path.open("w", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerows(curve)
     out = RESULTS / f"eval_summary_{ts}.md"
     out.write_text(text, encoding="utf-8")
     print(text, end="")
