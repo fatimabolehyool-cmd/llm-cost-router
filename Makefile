@@ -181,7 +181,7 @@ eval-seniors:    ## Opus 5.5 + Haiku 5.5 on the 689 test questions (~10 min, ~$2
 	$(PY) -m pipelines.evaluate seniors --model claude-opus-5-5 --tag opus --effort low
 	$(PY) -m pipelines.evaluate seniors --model claude-haiku-5-5 --tag haiku --effort low --thinking disabled
 
-eval-report:     ## evaluation table + cost/accuracy sweep; policy probabilities from MLServer (make real-up)
+eval-report:     ## evaluation table + cost/accuracy sweep; policy probabilities from MLServer (make real-up), saved to results/ for --policy-probs re-runs
 	$(DOCKER_UP)
 	$(PY) -m pipelines.evaluate report
 
