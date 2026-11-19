@@ -8,6 +8,7 @@ import asyncio
 import csv
 import json
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -219,6 +220,60 @@ def test_strategy_rows_show_false_acceptance_only_where_junior_answers_are_retur
     assert "| – |" in ev.strategy_row(ev.OPUS_ALONE, s)
     assert "| 10.0% (20.0%) |" in ev.strategy_row(ev.JUNIOR1_ALONE, s)
     assert "| 10.0% (20.0%) |" in ev.strategy_row(ev.RULE, s)
+    assert ev.strategy_row(ev.JUNIOR1_ALONE, s).endswith("| 900 / 1500† |")
+    assert ev.strategy_row(ev.RULE, s).endswith("| 900 / 1500 |")
+
+
+def test_cost_matched_mix_pays_what_the_router_pays_and_reports_the_lead():
+    rows = [row("a", gold="A"), row("b", gold="A"), row("c", gold="A"), row("d", gold="A")]
+    opus = {q: senior("A", cost=0.004) for q in "abcd"}  # always right
+    haiku = {q: senior("A" if q in "ab" else "B", cost=0.0) for q in "abcd"}  # right half the time
+    router = [{"correct": 1, "cost": 0.001}] * 4  # always right, $1 per 1,000
+    m = ev.cost_matched_mix(rows, opus, haiku, router)
+    assert m["share"] == pytest.approx(0.25)  # 25% Opus also costs $1 per 1,000
+    assert m["cost_k"] == pytest.approx(1.0)
+    assert m["acc"] == pytest.approx(0.25 * 1.0 + 0.75 * 0.5)
+    assert m["lead"] == pytest.approx(1.0 - 0.625)
+    assert m["lead_ci"][0] <= m["lead"] <= m["lead_ci"][1]
+
+
+def test_cost_matched_mix_when_opus_costs_no_more_than_haiku_is_all_haiku():
+    rows = [row("a")]
+    same = {"a": senior("A", cost=0.001)}
+    assert ev.cost_matched_mix(rows, same, same, [{"correct": 1, "cost": 0.0}])["share"] == 0.0
+
+
+def test_local_only_answers_where_trusted_and_abstains_otherwise():
+    rows = [row("a", gold="A"), row("b", gold="A", j1="B", j2="B"), row("c", j1=None, j2=None)]
+    s = ev.local_only(rows, [True, True, True])
+    assert s["answered"] == pytest.approx(2 / 3)  # c has no readable answer
+    assert s["precision"] == 0.5 and s["ci"] == wilson(1, 2)
+    assert ev.local_only(rows, [True, False, False])["precision"] == 1.0
+    assert math.isnan(ev.local_only(rows, [False, False, False])["precision"])
+
+
+def test_economics_monthly_costs_and_break_even_volume():
+    e = ev.economics(opus_k=3.0, router_k=1.0, haiku_k=0.1)
+    assert e["saving_k"] == 2.0
+    assert e["month"][3_000] == {
+        "opus": pytest.approx(270.0),
+        "router": pytest.approx(90.0),
+        "haiku": pytest.approx(9.0),
+        "saving": pytest.approx(180.0),
+    }
+    assert e["break_even"][300] == pytest.approx(300 / 0.002 / 30)  # 5,000 questions a day
+    assert ev.economics(1.0, 1.0, 0.1)["break_even"][100] == float("inf")
+
+
+def test_the_new_summary_rows_and_texts():
+    m = {"share": 0.33, "acc": 0.84, "cost_k": 0.91, "lead": 0.025, "lead_ci": (0.002, 0.048)}
+    assert ev.mix_row(m).startswith("| Random Haiku/Opus mix at the router's cost (33% Opus")
+    assert "+2.5% ahead (bootstrap 95% CI +0.2% to +4.8%" in ev.mix_text(m)
+    local = ev.local_only_lines([("x", {"answered": 0.5, "precision": 0.9, "ci": (0.8, 0.95)})])
+    assert local[-1] == "| x | 50.0% | 90.0% (80.0%–95.0%) | 50.0% |"
+    econ = ev.economics_lines(ev.economics(3.0, 1.0, 0.1))
+    assert "| 3,000 (the proposal's scenario) | $270 | $90 | $9.00 | $180 |" in econ
+    assert "| $300 | 5,000 |" in econ
 
 
 # ------------------------------------------------------- report() and files
@@ -289,9 +344,12 @@ def test_report_from_saved_probabilities_writes_the_summary_and_the_curve(files)
     text = out.read_text()
     assert "probabilities from the saved file eval_policy_probs_saved.jsonl" in text
     assert "**8 questions** (4 MMLU choice, 4 Banking77 label)" in text
-    table = [line for line in text.splitlines() if line.startswith("| ")]
-    assert len(table) == 1 + 6 + 1  # header, six strategies, random routing
-    assert "Router, policy v2 (champion, P >= 0.50)" in text
+    lines = text.splitlines()
+    start = lines.index(ev.TABLE_HEADER[1]) + 1
+    table = lines[start : lines.index("", start)]
+    assert len(table) == 6 + 2  # six strategies, random routing, the cost-matched mix
+    assert "Router, policy v2 (champion, P >= 0.50)" in table[5]
+    assert "**Local-only answers" in text and "Break-even volume" in text
     curve = list(csv.reader((files["results"] / text.split("`")[1]).open()))
     assert len(curve) == 1 + len(ev.THRESHOLDS) + len(ev.CURVE_BASELINES)
 
@@ -428,28 +486,48 @@ def test_main_dispatches_both_commands(monkeypatch):
 
 # ---------------------------------------------------------------- regression
 
-COMMITTED = "20261112-1728"  # the run the report quotes
+SUBMITTED = "20261112-1728"  # the run the 18 Nov report quotes
+PROBS = "eval_policy_probs_20261119-2159.jsonl"  # champion run-e1d8cf42, saved from MLServer
+SUMMARY = "20261119-2203"  # the summary built from PROBS with the comparisons added on 19 Nov
 
 
-def test_committed_results_reproduce_from_the_committed_data():
-    """Every number in results/eval_summary_<COMMITTED>.md that needs no policy server is
-    recomputed from data/replay and results/eval_senior_*.jsonl and must match to the character."""
+def committed_inputs():
     rows = ev.test_rows()
     opus = {r["question_id"]: r for r in ev.read_jsonl(ev.senior_file("opus"))}
     haiku = {r["question_id"]: r for r in ev.read_jsonl(ev.senior_file("haiku"))}
-    summary = (ev.RESULTS / f"eval_summary_{COMMITTED}.md").read_text(encoding="utf-8")
-    committed = summary.splitlines()
-    stats = {k: ev.summarize(v, rows) for k, v in ev.baseline_strategies(rows, opus, haiku).items()}
-    for name, s in stats.items():
-        assert ev.strategy_row(name, s) in committed, name
+    p, name, thr = ev.load_probabilities(ev.RESULTS / PROBS)
+    return rows, opus, haiku, p, name, thr
+
+
+def test_the_submitted_results_still_reproduce_from_the_committed_data():
+    """Every number in the submitted summary, the policy rows included, is recomputed from
+    data/replay, the recorded senior answers and the saved policy probabilities."""
+    rows, opus, haiku, p, _, thr = committed_inputs()
+    lines = (ev.RESULTS / f"eval_summary_{SUBMITTED}.md").read_text(encoding="utf-8").splitlines()
+    champion = ev.policy_label(thr)
+    strategies = ev.baseline_strategies(rows, opus, haiku)
+    strategies[champion] = ev.policy_strategy(rows, opus, p, thr)
+    stats = {k: ev.summarize(v, rows) for k, v in strategies.items()}
+    for name, s in stats.items():  # the junior rows have since gained a footnote mark
+        assert ev.strategy_row(name, s).replace("†", "") in lines, name
     esc = stats[ev.RULE]["esc"]
-    assert ev.random_row(esc, *ev.random_routing(rows, opus, esc)) in committed
+    assert ev.random_row(esc, *ev.random_routing(rows, opus, esc)) in lines
+    assert ev.paired_text(ev.paired(strategies[champion], strategies[ev.RULE])) in lines
+    assert ev.audit_text(ev.audit_check(rows, opus, p, thr)) in lines
     wrong, cost = ev.senior_facts(rows, opus)
-    assert ev.facts_text(wrong, len(rows), cost) in committed
-    assert ev.TABLE_HEADER[0] in committed
-    with (ev.RESULTS / f"eval_curve_{COMMITTED}.csv").open(encoding="utf-8") as f:
-        curve = list(csv.reader(f))
-    for name in ev.CURVE_BASELINES:
-        s = stats[name]
-        expected = [name, "", str(round(s["esc"], 4)), str(round(s["acc"], 4))]
-        assert [*expected, str(round(s["cost_k"], 3))] in curve, name
+    assert ev.facts_text(wrong, len(rows), cost) in lines
+    with (ev.RESULTS / f"eval_curve_{SUBMITTED}.csv").open(encoding="utf-8") as f:
+        expected = [[str(x) for x in r] for r in ev.threshold_curve(rows, opus, p, stats)]
+        assert list(csv.reader(f)) == expected
+
+
+def test_the_committed_summary_reproduces_to_the_character():
+    rows, opus, haiku, p, name, thr = committed_inputs()
+    committed = (ev.RESULTS / f"eval_summary_{SUMMARY}.md").read_text(encoding="utf-8")
+    generated = re.search(r"Generated (\S+)\.\n", committed).group(1)
+    source = f"the saved file {PROBS}"
+    curve_name = f"eval_curve_{SUMMARY}.csv"
+    text, curve = ev.summary_text(rows, opus, haiku, p, thr, name, source, curve_name, generated)
+    assert text == committed
+    with (ev.RESULTS / curve_name).open(encoding="utf-8") as f:
+        assert list(csv.reader(f)) == [[str(x) for x in r] for r in curve]
