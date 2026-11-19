@@ -4,8 +4,9 @@
 
 A routing service for a bank help desk (MAAI7102 course project, MBZUAI). Two small models
 running locally on a Mac answer each question first; the paid model (Claude Opus 5.5) is asked
-only when the local answer is not trusted. Questions that contain personal data never leave the
-Mac. Every answer comes back with a routing record: who answered, whether it was verified,
+only when the local answer is not trusted. Questions flagged as sensitive, or containing a detected
+email, phone number, Emirates ID or card number, never leave the Mac (section 9 lists what is not
+detected). Every answer comes back with a routing record: who answered, whether it was verified,
 why, what it cost.
 
 **Measured on the 689-question held-out test set** (`results/eval_summary_20261112-1728.md`):
@@ -68,7 +69,7 @@ cd llm-cost-router
 make venv          # host virtual environment (tests and scripts)
 make env           # .env from .env.example, with local values (git-ignored)
 make admin-key     # admin key for policy reload, written to .env (never printed)
-make lint cov      # lint, 229 unit tests, coverage (fails below 80%)
+make lint cov      # lint, unit tests, coverage (fails below 80%)
 make e2e           # builds the images, starts router + PostgreSQL + MOCK models, 11 workflow tests
 make p1            # load test on the MOCK stack: router overhead and success at 1-4 concurrent
 ```
@@ -114,9 +115,9 @@ both switches, and checks that the router never restarted (`results/lifecycle_de
 | Command | What it proves | Needs |
 |---|---|---|
 | `make lint` | ruff lint and format, as in CI | – |
-| `make cov` | 229 unit tests (routing rules, normalizer, privacy, adapters, policy, admin, metrics, shadow) and coverage ≥ 80% | – |
+| `make cov` | Unit tests (routing rules, normalizer, privacy, adapters, policy, admin, metrics, shadow) and coverage ≥ 80% | – |
 | `make test-integration` | 8 tests against a throwaway PostgreSQL 16: migrations, concurrent spend reservation, retention, feedback | Docker |
-| `make e2e` | 11 end-to-end workflows on the Compose stack: every mode, feedback round trip, sensitive data never leaves or is stored in clear, junior/senior/input failures | Docker |
+| `make e2e` | 11 end-to-end workflows on the Compose stack: every mode, feedback round trip, sensitive requests never leave and are never stored in clear, junior/senior/input failures | Docker |
 | `make s1` | S1: the stack starts, serves all modes, survives a database outage, recovers | Docker |
 | `make s3` | S3 canary: 252+ sensitive requests, zero leaks to the provider, database or logs, including the audit path | Docker |
 | `make restore-test` | timed backup and restore, verified by row counts | running stack |
@@ -147,7 +148,8 @@ curl -s localhost:8000/v1/answer -H 'X-API-Key: dev-key-change-me' -H 'Content-T
   options) and any other list as `label` (a customer message sorted into one of the request types
   you send, e.g. the 77 Banking77 intents in `data/banking77_labels.json`). Send it explicitly to
   override; the response says how the request was read. `mode`: `cheapest`, `balanced` (default),
-  `best_quality`. `sensitive: true` forces local-only handling; personal data is also detected.
+  `best_quality`. `sensitive: true` forces local-only handling; emails, phone numbers, Emirates
+  IDs and card numbers are also detected automatically (section 9 says what is not).
 - Errors: `400 invalid_request` (also non-English questions), `401 unauthorized`,
   `503 overloaded | models_unavailable | database_unavailable`. A request the router cannot
   answer safely comes back `200` with `"status": "abstained"` and the reason.
@@ -219,6 +221,9 @@ data/          question pools with SHA-256 checksums; results/: measured outputs
 Secrets live only in `.env` (git-ignored); the router stores SHA-256 hashes of keys; gitleaks
 scans the full history in CI; logs carry request IDs and outcomes, never question text;
 request text is masked before storage and cleared after 30 days, rows after 180 days (daily
-Airflow DAG). The router and policy-server images run as a non-root user, and the services
-built here run with `no-new-privileges`. Data: MMLU (MIT licence),
-Banking77 (CC BY 4.0). Built with AI assistance (Claude); see the report's AI-usage section.
+Airflow DAG). Automatic detection covers emails, UAE and international phone numbers, Emirates
+IDs and Luhn-valid card numbers. Names, addresses, IBANs and account numbers are not detected, so
+the caller's `sensitive` flag is the only protection for them. The router and policy-server
+images run as a non-root user, and the services built here run with `no-new-privileges`. Data:
+MMLU (MIT licence), Banking77 (CC BY 4.0). Built with AI
+assistance (Claude); see the report's AI-usage section.
